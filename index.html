@@ -64,6 +64,13 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .hi button:first-child{flex:1;text-align:left;background:#f1f4f8}
 .hi.on button:first-child{outline:2px solid var(--accent)}
 .hi small{display:block;color:var(--muted)}
+input[type=checkbox]{width:22px;height:22px;margin:0;flex:none}
+.chk{display:flex;align-items:center;gap:8px;color:var(--ink)}
+.tl{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.tl .n3{grid-column:2;display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end}
+.tl output{font-weight:600;padding-bottom:10px;white-space:nowrap}
+.tl.off{opacity:.45}
+details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;border-radius:8px;max-height:220px;overflow:auto}
 /* ---------- La facture (A4 = 794 px de large) ---------- */
 .inv{width:794px;min-height:1120px;display:flex;flex-direction:column;padding:56px 60px;background:#fff;color:#222;font:13px/1.45 "Helvetica Neue",Arial,sans-serif;letter-spacing:.01px/* sinon le PDF colle les mots (html2canvas) */;box-shadow:0 2px 14px rgba(0,0,0,.12);-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .inv .top{display:flex;justify-content:space-between;gap:24px}
@@ -152,6 +159,8 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
         <button data-add="article">＋ Article</button>
         <button data-add="km">＋ Déplacement</button>
         <button data-add="heure">＋ Main-d'œuvre</button>
+        <button id="bTicket">📷 Ticket</button>
+        <input type="file" id="fTicket" accept="image/*" hidden>
       </div>
     </div>
 
@@ -173,6 +182,11 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 <dialog id="dlgHist">
   <div class="dlg-h"><h2>Historique</h2><button autofocus onclick="this.closest('dialog').close()">Fermer</button></div>
   <div class="dlg-b" id="hist"></div>
+</dialog>
+
+<dialog id="dlgTicket">
+  <div class="dlg-h"><h2>Ticket fournisseur</h2><button autofocus onclick="this.closest('dialog').close()">Fermer</button></div>
+  <div class="dlg-b" id="ticket"></div>
 </dialog>
 
 <dialog id="dlgReglages">
@@ -204,7 +218,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 <script>
 const $ = s => document.querySelector(s);
 const KEY = 'factures-v1';
-const DEFAUT = {nom:'', adresse:'', tel:'', email:'', entreprise:'', iban:'', bic:'', km:'0,45', heure:'45', delai:'30', notes:''};
+const DEFAUT = {nom:'', adresse:'', tel:'', email:'', entreprise:'', iban:'', bic:'', km:'0,45', heure:'45', delai:'30', notes:'', marge:'20', ticketTvac:false};
 const MENTIONS = {
   franchise: 'Régime particulier de franchise des petites entreprises – TVA non applicable.',
   auto: 'Autoliquidation – TVA due par le cocontractant (art. 20, A.R. n° 1).'
@@ -468,6 +482,131 @@ $('#bPdf').onclick = async () => {
     b.disabled = false; majPdf();
   }
 };
+
+// ---------- Ticket fournisseur : photo → lignes ----------
+// ponytail: lecture ligne par ligne (prix = nombre à 2 décimales), pensée pour les tickets simples ;
+// les tickets en colonnes exotiques passent par l'écran de contrôle, où tout se corrige.
+const PRIX = /-?\d{1,6},\d{2}(?![\d%])/g;
+const IGNORER = /total|totaal|sous-t|subtot|tva|btw|montant|payer|payé|cash|esp[eè]ces|carte|bancontact|maestro|visa|mastercard|rendu|merci|bedankt|kassa|caisse|t[eé]l[ .:]|www|iban|bic|date|heure/i;
+
+function lireTicket(texte) {
+  const items = [];
+  let avant = ''; // ligne de texte sans prix : désignation possible de la ligne suivante
+  for (const brut of texte.split('\n')) {
+    if (!brut.trim()) continue;
+    if (IGNORER.test(brut) || /\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/.test(brut)) { avant = ''; continue; } // + dates
+    const ligne = brut.replace(/(\d)\s*[.,]\s*(\d{2})(?!\d)/g, '$1,$2').replace(/\s+/g, ' ').trim();
+    const prix = ligne.match(PRIX) || [];
+    if (!prix.length) { avant = /[a-zà-ü]{3}/i.test(ligne) ? ligne : ''; continue; }
+    const mx = ligne.match(/(\d+(?:,\d+)?)\s*[x×*]\s*(-?\d{1,6},\d{2})/i);
+    let qte = 1, pu;
+    if (mx) { qte = num(mx[1]); pu = num(mx[2]); }
+    else if (prix.length >= 2) {
+      const total = num(prix.at(-1)), q = num(prix.at(-2)) ? total / num(prix.at(-2)) : 0;
+      if (q >= 1 && Math.abs(q - Math.round(q * 100) / 100) < 0.005) { qte = Math.round(q * 100) / 100; pu = num(prix.at(-2)); }
+      else pu = total;
+    } else pu = num(prix[0]);
+    let desc = ligne.slice(0, mx ? mx.index : ligne.search(PRIX)).trim();
+    const fin = desc.match(/\s*\b(\d+(?:,\d+)?)\s*(pc|pce|pcs|st|stk|u|m)?\.?$/i);
+    if (fin && num(fin[1]) === qte) desc = desc.slice(0, fin.index).trim();
+    if (!/[a-zà-ü]{3}/i.test(desc) && avant) desc = avant;
+    avant = '';
+    if (pu && /[a-zà-ü]{2}/i.test(desc)) items.push({desc, qte, pu, ok: pu > 0}); // sans libellé : date, n° de ticket…
+  }
+  return items;
+}
+// Auto-contrôle de la lecture (message dans la console si elle est fausse)
+(() => { const t = lireTicket('Rue de Gand 123\n25.09.2026 14:12\nPRISE DOUBLE NIKO 2 x 12,50 25,00\nCABLE XVB 3G2,5\n\n25 1.85 46,25\nTOTAL 71,25\nBANCONTACT 71,25');
+  console.assert(t.length === 2 && t[0].desc === 'PRISE DOUBLE NIKO' && t[0].qte === 2 && t[0].pu === 12.5
+    && t[1].desc === 'CABLE XVB 3G2,5' && t[1].qte === 25 && t[1].pu === 1.85, 'Lecture de ticket fausse', t); })();
+
+let ticket = {items: [], texte: ''};
+const nb = n => String(n).replace('.', ',');
+const venteCts = it => Math.round(num(it.pu) / (db.reglages.ticketTvac ? 1.21 : 1) * (1 + num(db.reglages.marge) / 100) * 100);
+const etatTicket = t => $('#ticket').innerHTML = `<p>${t}</p>`;
+
+function chargerScript(src) {
+  return new Promise((ok, ko) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = ok; s.onerror = () => ko(Error('pas de connexion internet ?'));
+    document.head.append(s);
+  });
+}
+
+async function lireImage(file) {
+  $('#dlgTicket').showModal();
+  etatTicket('Préparation de la photo…');
+  try {
+    if (!window.Tesseract) await chargerScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
+    const img = await createImageBitmap(file);
+    const k = Math.min(1, 2000 / Math.max(img.width, img.height)); // assez net pour lire, pas trop lourd pour un téléphone
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    const w = await Tesseract.createWorker('fra', 1, {logger: m => {
+      if (m.progress == null) return;
+      etatTicket(`${m.status === 'recognizing text' ? 'Lecture du ticket' : 'Chargement du moteur de lecture (plus long la 1re fois)'}… ${Math.round(m.progress * 100)} %`);
+    }});
+    try {
+      // mode 6 = « bloc uniforme » : garde chaque prix sur la ligne de son article (le mode 4 sautait la colonne de droite)
+      await w.setParameters({tessedit_pageseg_mode: '6', preserve_interword_spaces: '1'});
+      ticket.texte = (await w.recognize(c)).data.text;
+    } finally { await w.terminate(); }
+    ticket.items = lireTicket(ticket.texte);
+    renderTicket();
+  } catch (e) {
+    etatTicket('Lecture impossible : ' + esc(e.message));
+  }
+}
+
+function renderTicket() {
+  const r = db.reglages, it = ticket.items;
+  $('#ticket').innerHTML = `
+    <div class="grid">
+      <label>Marge matériel (%)<input id="tMarge" inputmode="decimal" value="${esc(r.marge)}"></label>
+      <label class="chk"><input type="checkbox" id="tTvac" ${r.ticketTvac ? 'checked' : ''}> Prix du ticket TVAC (21 %)</label>
+    </div>
+    <p class="note">${it.length ? `${it.length} ligne(s) trouvée(s). Vérifie et corrige avant d'ajouter.` : 'Aucune ligne avec un prix trouvée. Reprends la photo bien à plat, avec plus de lumière.'}</p>
+    ${it.map((x, i) => `
+      <div class="tl ${x.ok ? '' : 'off'}">
+        <input type="checkbox" data-ti="${i}" data-tk="ok" ${x.ok ? 'checked' : ''} aria-label="Garder la ligne">
+        <input data-ti="${i}" data-tk="desc" value="${esc(x.desc)}" aria-label="Désignation">
+        <div class="n3">
+          <label>Qté<input data-ti="${i}" data-tk="qte" inputmode="decimal" value="${esc(nb(x.qte))}"></label>
+          <label>Achat €<input data-ti="${i}" data-tk="pu" inputmode="decimal" value="${esc(typeof x.pu === 'number' ? nb(x.pu.toFixed(2)) : x.pu)}"></label>
+          <output id="tv${i}" title="Prix de vente HTVA">→ ${fmt(venteCts(x))}</output>
+        </div>
+      </div>`).join('')}
+    <details><summary>Texte lu sur la photo</summary><pre>${esc(ticket.texte)}</pre></details>
+    <p><button class="primary" id="tAjout" ${it.some(x => x.ok) ? '' : 'disabled'}>Ajouter à la facture</button></p>`;
+}
+
+['input', 'change'].forEach(t => $('#ticket').addEventListener(t, e => {
+  const el = e.target;
+  if (el.id === 'tMarge') db.reglages.marge = el.value;
+  else if (el.id === 'tTvac') db.reglages.ticketTvac = el.checked;
+  else if (el.dataset.tk) {
+    const x = ticket.items[el.dataset.ti];
+    x[el.dataset.tk] = el.type === 'checkbox' ? el.checked : el.value;
+    el.closest('.tl').classList.toggle('off', !x.ok);
+    $('#tAjout').disabled = !ticket.items.some(x => x.ok);
+  } else return;
+  sauver();
+  ticket.items.forEach((x, i) => $('#tv' + i).textContent = '→ ' + fmt(venteCts(x)));
+}));
+
+$('#ticket').addEventListener('click', e => {
+  if (e.target.id !== 'tAjout') return;
+  const f = cur();
+  f.lignes = f.lignes.filter(l => l.desc || num(l.pu)); // retire la ligne vide de départ
+  for (const x of ticket.items.filter(x => x.ok))
+    f.lignes.push({desc: x.desc, qte: nb(x.qte), unite: '', pu: (venteCts(x) / 100).toFixed(2).replace('.', ',')});
+  $('#dlgTicket').close();
+  renderLignes(); modifie();
+});
+
+$('#bTicket').onclick = () => $('#fTicket').click();
+$('#fTicket').onchange = e => { const file = e.target.files[0]; e.target.value = ''; if (file) lireImage(file); };
 
 // ---------- Sauvegarde (export / import) ----------
 $('#bExport').onclick = () =>
