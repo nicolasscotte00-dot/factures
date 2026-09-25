@@ -487,21 +487,27 @@ $('#bPdf').onclick = async () => {
 // ponytail: lecture ligne par ligne (prix = nombre à 2 décimales), pensée pour les tickets simples ;
 // les tickets en colonnes exotiques passent par l'écran de contrôle, où tout se corrige.
 const PRIX = /-?\d{1,6},\d{2}(?![\d%])/g;
-const IGNORER = /total|totaal|sous-t|subtot|tva|btw|montant|payer|payé|cash|esp[eè]ces|carte|bancontact|maestro|visa|mastercard|rendu|merci|bedankt|kassa|caisse|t[eé]l[ .:]|www|iban|bic|date|heure/i;
+const FIN = /tota|subtot|sous-t/i; // ligne « total » : avec un prix, les articles sont finis (la suite = paiement)
+const IGNORER = /tva|btw|remise|korting|montant|payer|payé|cash|esp[eè]ces|carte|bancontact|maestro|visa|mastercard|rendu|merci|bedankt|kassa|caisse|t[eé]l[ .:]|www|iban|bic|date|heure/i;
 
 function lireTicket(texte) {
   const items = [];
-  let avant = ''; // ligne de texte sans prix : désignation possible de la ligne suivante
+  let avant = ''; // 1re ligne de texte depuis l'article précédent : sa désignation probable
   for (const brut of texte.split('\n')) {
-    if (!brut.trim()) continue;
-    if (IGNORER.test(brut) || /\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/.test(brut)) { avant = ''; continue; } // + dates
-    const ligne = brut.replace(/(\d)\s*[.,]\s*(\d{2})(?!\d)/g, '$1,$2').replace(/\s+/g, ' ').trim();
+    const ligne = brut.replace(/(\d)\s*[.,]\s*(\d{2})(?!\d)/g, '$1,$2')
+      .replace(/^\s*[iIl|]\s*[x×]\s/, '1 x ') // « 1 » lu comme « i »
+      .replace(/\s+/g, ' ').trim();
     const prix = ligne.match(PRIX) || [];
-    if (!prix.length) { avant = /[a-zà-ü]{3}/i.test(ligne) ? ligne : ''; continue; }
+    if (FIN.test(ligne) && prix.length) break;
+    if (FIN.test(ligne) || IGNORER.test(brut) || /\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/.test(brut)) { avant = ''; continue; } // + dates
+    if (!prix.length) { if (!avant && /[a-zà-ü]{3}/i.test(ligne)) avant = ligne; continue; } // les lignes de code produit ne l'écrasent pas
     const mx = ligne.match(/(\d+(?:,\d+)?)\s*[x×*]\s*(-?\d{1,6},\d{2})/i);
+    const total = num(prix.at(-1));
     let qte = 1, pu;
-    if (mx) { qte = num(mx[1]); pu = num(mx[2]); }
-    else if (prix.length >= 2) {
+    if (mx) {
+      qte = num(mx[1]); pu = num(mx[2]);
+      if (prix.length >= 2 && qte && Math.abs(qte * pu - total) >= 0.01) pu = Math.round(total / qte * 10000) / 10000; // remise : le total de la ligne fait foi
+    } else if (prix.length >= 2) {
       const total = num(prix.at(-1)), q = num(prix.at(-2)) ? total / num(prix.at(-2)) : 0;
       if (q >= 1 && Math.abs(q - Math.round(q * 100) / 100) < 0.005) { qte = Math.round(q * 100) / 100; pu = num(prix.at(-2)); }
       else pu = total;
@@ -510,15 +516,19 @@ function lireTicket(texte) {
     const fin = desc.match(/\s*\b(\d+(?:,\d+)?)\s*(pc|pce|pcs|st|stk|u|m)?\.?$/i);
     if (fin && num(fin[1]) === qte) desc = desc.slice(0, fin.index).trim();
     if (!/[a-zà-ü]{3}/i.test(desc) && avant) desc = avant;
+    desc = desc.replace(/\s+-\s+[\d\s-]+$/, '').replace(/[^\p{L}\p{N})]+$/u, ''); // code fournisseur « - 101-76100 00 », parasites
     avant = '';
     if (pu && /[a-zà-ü]{2}/i.test(desc)) items.push({desc, qte, pu, ok: pu > 0}); // sans libellé : date, n° de ticket…
   }
   return items;
 }
-// Auto-contrôle de la lecture (message dans la console si elle est fausse)
-(() => { const t = lireTicket('Rue de Gand 123\n25.09.2026 14:12\nPRISE DOUBLE NIKO 2 x 12,50 25,00\nCABLE XVB 3G2,5\n\n25 1.85 46,25\nTOTAL 71,25\nBANCONTACT 71,25');
-  console.assert(t.length === 2 && t[0].desc === 'PRISE DOUBLE NIKO' && t[0].qte === 2 && t[0].pu === 12.5
-    && t[1].desc === 'CABLE XVB 3G2,5' && t[1].qte === 25 && t[1].pu === 1.85, 'Lecture de ticket fausse', t); })();
+// Auto-contrôle de la lecture (message dans la console si elle est fausse) — formats Brico de test et BricoNam réel
+(() => { const t = lireTicket('Rue de Gand 123\n25.09.2026 14:12\nArticle   Total\nPRISE DOUBLE NIKO 2 x 12,50 25,00\n'
+    + 'PLAQUE SIMPLE BLANC - 101-76100 00\n101-76100\n11 x 3,00 € -30%   23,10 €\nPLAQUE QUADR. 71 BLANC °\ni x 15,15 € -30%   10,61 €\n'
+    + 'CABLE XVB 3G2,5\n\n25 1.85 46,25\nREMISE: € 25,35\nTOTAL: € 125,21\nPAYE\nCT: 125,21 €');
+  const vu = t.map(x => `${x.desc}|${x.qte}|${x.pu}`).join(' ; ');
+  console.assert(vu === 'PRISE DOUBLE NIKO|2|12.5 ; PLAQUE SIMPLE BLANC|11|2.1 ; PLAQUE QUADR. 71 BLANC|1|10.61 ; CABLE XVB 3G2,5|25|1.85',
+    'Lecture de ticket fausse', vu); })();
 
 let ticket = {items: [], texte: ''};
 const nb = n => String(n).replace('.', ',');
@@ -573,7 +583,7 @@ function renderTicket() {
         <input data-ti="${i}" data-tk="desc" value="${esc(x.desc)}" aria-label="Désignation">
         <div class="n3">
           <label>Qté<input data-ti="${i}" data-tk="qte" inputmode="decimal" value="${esc(nb(x.qte))}"></label>
-          <label>Achat €<input data-ti="${i}" data-tk="pu" inputmode="decimal" value="${esc(typeof x.pu === 'number' ? nb(x.pu.toFixed(2)) : x.pu)}"></label>
+          <label>Achat €<input data-ti="${i}" data-tk="pu" inputmode="decimal" value="${esc(typeof x.pu === 'number' ? nb(x.pu.toFixed(Math.abs(x.pu * 100 - Math.round(x.pu * 100)) > 1e-6 ? 3 : 2)) : x.pu)}"></label>
           <output id="tv${i}" title="Prix de vente HTVA">→ ${fmt(venteCts(x))}</output>
         </div>
       </div>`).join('')}
