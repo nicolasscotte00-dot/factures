@@ -229,7 +229,7 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
       <label class="full">Notes par défaut (nouvelles factures)<textarea name="r.notes" rows="2"></textarea></label>
     </div>
     <h3>Équipe</h3>
-    <p class="note">Chaque personne a son taux horaire facturé au client. Elle apparaît ensuite comme bouton « ＋ » dans les lignes de la facture.</p>
+    <p class="note">Chaque personne a son taux horaire et son tarif au km facturés au client. Elle a ensuite ses boutons « ＋ » (heures et déplacement) dans les lignes de la facture.</p>
     <div id="equipe"></div>
     <div class="add">
       <button data-eact="associe">＋ Ajouter un associé</button>
@@ -401,10 +401,11 @@ document.addEventListener('click', e => {
     }[b.dataset.add]);
     renderLignes(); modifie();
     $(`[name="l.${b.dataset.add === 'article' ? 'desc' : 'qte'}.${f.lignes.length - 1}"]`).focus();
-  } else if (b.dataset.eq) {
-    const p = db.equipe.find(x => x.id === b.dataset.eq);
+  } else if (b.dataset.eq || b.dataset.eqkm) { // heures ou déplacement d'un associé / travailleur
+    const km = !!b.dataset.eqkm, p = db.equipe.find(x => x.id === (b.dataset.eq || b.dataset.eqkm));
     f.lignes = f.lignes.filter(l => l.desc || num(l.pu)); // retire la ligne vide de départ
-    f.lignes.push({desc: `Main-d'œuvre – ${p.nom.trim()} (${STATUT[p.statut]})`, qte: '', unite: 'h', pu: p.taux, cat: '', remise: ''});
+    f.lignes.push({desc: `${km ? 'Déplacement' : "Main-d'œuvre"} – ${p.nom.trim()} (${STATUT[p.statut]})`,
+      qte: '', unite: km ? 'km' : 'h', pu: km ? p.km : p.taux, cat: '', remise: ''});
     renderLignes(); modifie();
     $(`[name="l.qte.${f.lignes.length - 1}"]`).focus();
   } else if (b.dataset.del) {
@@ -778,11 +779,13 @@ function renderEquipe() {
         <option value="travailleur" ${p.statut === 'travailleur' ? 'selected' : ''}>Travailleur (pour moi)</option>
       </select></label>
       <label>€/h facturé<input data-ei="${i}" data-ek="taux" inputmode="decimal" value="${esc(p.taux)}" placeholder="à remplir"></label>
+      <label>€/km facturé<input data-ei="${i}" data-ek="km" inputmode="decimal" value="${esc(p.km)}"></label>
     </div>`).join('');
   renderEqBtns();
 }
 const renderEqBtns = () => $('#eqBtns').innerHTML = db.equipe.filter(p => p.nom.trim())
-  .map(p => `<button data-eq="${p.id}">＋ ${esc(p.nom.trim())} (${STATUT[p.statut]})</button>`).join('');
+  .map(p => `<button data-eq="${p.id}">＋ ${esc(p.nom.trim())} (${STATUT[p.statut]})</button>
+    <button data-eqkm="${p.id}">＋ Déplacement ${esc(p.nom.trim())}</button>`).join('');
 
 $('#dlgReglages').addEventListener('click', e => {
   const b = e.target.closest('[data-eact]');
@@ -792,7 +795,7 @@ $('#dlgReglages').addEventListener('click', e => {
     const p = db.equipe[b.dataset.ei];
     if (!confirm(`Retirer ${p.nom.trim() || 'cette personne'} de l'équipe ?`)) return;
     db.equipe.splice(+b.dataset.ei, 1);
-  } else db.equipe.push({id: Date.now().toString(36), nom: '', statut: a, taux: a === 'associe' ? db.reglages.heure : ''});
+  } else db.equipe.push({id: Date.now().toString(36), nom: '', statut: a, taux: a === 'associe' ? db.reglages.heure : '', km: db.reglages.km});
   sauver(); renderEquipe();
   if (a !== 'del') [...document.querySelectorAll('#equipe [data-ek="nom"]')].at(-1).focus();
 });
@@ -825,6 +828,7 @@ function demarrer() {
   db.reglages = {...DEFAUT, ...db.reglages};
   db.catalogue ??= catalogueDefaut();
   db.equipe ??= [];
+  db.equipe.forEach(p => p.km ??= db.reglages.km); // personnes créées avant le tarif au km
   renderEquipe();
   if (cur()) ouvrir(db.courante);
   else if (db.factures.length) ouvrir(db.factures.at(-1).id);
