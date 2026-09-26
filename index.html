@@ -10,6 +10,15 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icone-180.png">
 <link rel="icon" href="icone-192.png">
+<script>
+// Lien personnel (?profil=nom) : icône et nom propres sur l'écran d'accueil, logo pré-chargé (voir profils/nom/).
+const PROFIL = (new URLSearchParams(location.search).get('profil') || '').match(/^[a-z0-9-]+$/)?.[0] || '';
+if (PROFIL) {
+  document.querySelector('link[rel=manifest]').href = `profils/${PROFIL}/manifest.webmanifest`;
+  document.querySelector('link[rel=apple-touch-icon]').href = `profils/${PROFIL}/icone-180.png`;
+  document.querySelector('link[rel=icon]').href = `profils/${PROFIL}/icone-192.png`;
+}
+</script>
 <title>Factures</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
 <style>
@@ -23,6 +32,8 @@ button:disabled{opacity:.6}
 .haut{position:sticky;top:0;z-index:5;background:var(--bg)}
 header{display:flex;align-items:center;gap:6px;padding:10px 16px;padding-top:calc(10px + env(safe-area-inset-top));background:var(--brand);color:#fff}
 header h1{font-size:18px;margin:0 auto 0 0}
+header h1 img{display:block;height:40px;max-width:150px;object-fit:contain}
+.logo-apercu img{display:block;max-height:70px;max-width:220px;margin-bottom:8px}
 header button{background:rgba(255,255,255,.16);color:#fff;padding:8px 11px}
 .tabs{display:flex;gap:4px;margin:12px 16px 4px;background:#e3e8ef;border-radius:10px;padding:4px}
 .tabs button{flex:1;background:none;padding:8px}
@@ -87,6 +98,7 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
 .inv{width:794px;min-height:1120px;display:flex;flex-direction:column;padding:56px 60px;background:#fff;color:#222;font:13px/1.45 "Helvetica Neue",Arial,sans-serif;letter-spacing:.01px/* sinon le PDF colle les mots (html2canvas) */;box-shadow:0 2px 14px rgba(0,0,0,.12);-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .inv .top{display:flex;justify-content:space-between;gap:24px}
 .inv .em b{font-size:18px;color:#1f3a5f}
+.inv .em .logo{display:block;max-height:100px;max-width:240px;margin-bottom:10px}
 .inv h3{margin:0 0 6px;font-size:30px;letter-spacing:.08em;color:#1f3a5f;text-align:right}
 .inv .meta{text-align:right;white-space:nowrap}
 .inv .cl{width:320px;margin:36px 0 28px auto;padding:14px 16px;border:1px solid #dde2ea;border-radius:6px}
@@ -123,7 +135,7 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
 
 <div class="haut">
   <header>
-    <h1>Factures</h1>
+    <h1 id="titre">Factures</h1>
     <button id="bNouvelle">＋ Nouvelle</button>
     <button id="bHist">Historique</button>
     <button id="bReglages" aria-label="Réglages">⚙︎</button>
@@ -227,6 +239,14 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
       <label>Taux horaire (€/h)<input name="r.heure" inputmode="decimal"></label>
       <label>Délai de paiement (jours)<input name="r.delai" inputmode="numeric"></label>
       <label class="full">Notes par défaut (nouvelles factures)<textarea name="r.notes" rows="2"></textarea></label>
+    </div>
+    <h3>Logo</h3>
+    <p class="note">Il apparaît sur les factures et en haut de l'app, sur cet appareil seulement.</p>
+    <div class="logo-apercu" id="logoApercu"></div>
+    <div class="add">
+      <button id="bLogo">Choisir une image</button>
+      <button id="bLogoRetirer" class="danger">Retirer le logo</button>
+      <input type="file" id="fLogo" accept="image/*" hidden>
     </div>
     <h3>Équipe</h3>
     <p class="note">Chaque personne a son taux horaire et son tarif au km facturés au client. Elle a ensuite ses boutons « ＋ » (heures et déplacement) dans les lignes de la facture.</p>
@@ -446,6 +466,7 @@ function rendu() {
   $('#facture').innerHTML = `
     <div class="top">
       <div class="em">
+        ${r.logo ? `<img class="logo" src="${esc(r.logo)}" alt="">` : ''}
         <b>${esc(r.nom) || 'Votre nom (⚙︎ Réglages)'}</b>
         <div class="pre">${esc(r.adresse)}</div>
         ${r.tel ? `Tél. ${esc(r.tel)}<br>` : ''}${r.email ? `${esc(r.email)}<br>` : ''}
@@ -807,6 +828,39 @@ $('#dlgReglages').addEventListener('click', e => {
 }));
 $('#dlgReglages').addEventListener('close', () => { db.equipe = db.equipe.filter(p => p.nom.trim()); sauver(); renderEquipe(); }); // sans nom = abandonné
 
+// ---------- Logo (propre à chaque appareil, gardé dans les réglages) ----------
+async function imageEnDataUrl(src) { // src : fichier choisi ou adresse d'image
+  const img = await createImageBitmap(src instanceof Blob ? src : await (await fetch(src)).blob());
+  const k = Math.min(1, 600 / img.width, 300 / img.height); // assez net pour la facture, léger pour le stockage
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/png');
+}
+function majLogo() {
+  const l = db.reglages.logo;
+  $('#titre').innerHTML = l ? `<img src="${esc(l)}" alt="Factures">` : 'Factures';
+  $('#logoApercu').innerHTML = l ? `<img src="${esc(l)}" alt="Logo">` : '<p class="note">Aucun logo.</p>';
+  $('#bLogoRetirer').hidden = !l;
+}
+const poserLogo = l => { db.reglages.logo = l; sauver(); majLogo(); rendu(); };
+$('#bLogo').onclick = () => $('#fLogo').click();
+$('#fLogo').onchange = async e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  try { poserLogo(await imageEnDataUrl(file)); } catch (err) { alert('Image illisible : ' + err.message); }
+};
+$('#bLogoRetirer').onclick = () => { if (confirm('Retirer le logo ?')) poserLogo(''); };
+
+// Lien personnel : le logo du profil ne s'installe que sur un appareil neuf (ou déjà à ce profil),
+// jamais par-dessus les réglages de quelqu'un d'autre qui ouvrirait le lien.
+function logoDuProfil() {
+  const r = db.reglages;
+  if (!PROFIL || r.logo || (r.nom && r.profil !== PROFIL)) return;
+  imageEnDataUrl(`profils/${PROFIL}/logo.png`).then(l => { r.profil = PROFIL; poserLogo(l); }).catch(() => {}); // hors ligne : réessaie à la prochaine ouverture
+}
+
 // ---------- Sauvegarde (export / import) ----------
 $('#bExport').onclick = () =>
   telecharger(new File([JSON.stringify(db, null, 1)], `factures-sauvegarde-${today()}.json`, {type: 'application/json'}));
@@ -830,6 +884,8 @@ function demarrer() {
   db.equipe ??= [];
   db.equipe.forEach(p => p.km ??= db.reglages.km); // personnes créées avant le tarif au km
   renderEquipe();
+  majLogo();
+  logoDuProfil();
   if (cur()) ouvrir(db.courante);
   else if (db.factures.length) ouvrir(db.factures.at(-1).id);
   else creer();
