@@ -545,7 +545,8 @@ function renderPostes() {
   $('#postes').innerHTML = `
     <div class="chips">${cats.map((x, i) => `<button data-pc="${i}" class="${i === posteCat ? 'on' : ''}">${esc(x.icone)} ${esc(x.nom)}</button>`).join('')}
       ${posteEdit ? '<button data-pact="cat+">＋ Métier</button>' : ''}</div>
-    <p><button data-pact="edit">${posteEdit ? '✓ Terminé' : '✏️ Modifier les postes et les prix'}</button></p>
+    <div class="add">${c ? '<button class="primary" data-pact="poste+">＋ Nouveau poste</button>' : ''}
+      <button data-pact="edit">${posteEdit ? '✓ Terminé' : '✏️ Modifier les postes et les prix'}</button></div>
     ${!c ? '<p class="note">Aucun métier. Touche ✏️ puis « ＋ Métier ».</p>' : posteEdit ? `
       <label>Nom du métier<input data-cn value="${esc(c.nom)}"></label>
       ${c.postes.map((p, i) => `
@@ -581,10 +582,10 @@ $('#postes').addEventListener('click', e => {
   if (!b) return;
   const cats = db.catalogue, c = cats[posteCat], a = b.dataset.pact;
   if (b.dataset.pc) posteCat = +b.dataset.pc;
-  else if (a === 'edit') posteEdit = !posteEdit;
+  else if (a === 'edit') { posteEdit = !posteEdit; if (!posteEdit) sansNomDehors(); }
   else if (a === 'cat+') { cats.push({icone: '🔧', nom: 'Nouveau métier', postes: []}); posteCat = cats.length - 1; }
   else if (a === 'cat-') { if (!confirm(`Supprimer le métier « ${c.nom} » et tous ses postes ?`)) return; cats.splice(posteCat, 1); posteCat = 0; }
-  else if (a === 'poste+') c.postes.push({nom: '', unite: 'pce', mo: '', mat: ''});
+  else if (a === 'poste+') { c.postes.push({nom: '', unite: 'pce', mo: '', mat: ''}); posteEdit = true; }
   else if (a === 'del') { if (!confirm(`Supprimer le poste « ${c.postes[b.dataset.pi].nom} » ?`)) return; c.postes.splice(+b.dataset.pi, 1); }
   else if (a === 'add') {
     ajouterPoste(c, c.postes[b.dataset.pi], $(`[data-pq="${b.dataset.pi}"]`).value);
@@ -608,7 +609,8 @@ $('#postes').addEventListener('click', e => {
 }));
 
 $('#bPostes').onclick = () => { posteEdit = false; renderPostes(); $('#dlgPostes').showModal(); };
-$('#dlgPostes').addEventListener('close', () => { renderLignes(); rendu(); }); // noms de métiers à jour dans les lignes
+const sansNomDehors = () => { db.catalogue.forEach(c => c.postes = c.postes.filter(p => p.nom.trim())); sauver(); }; // postes ajoutés puis laissés vides
+$('#dlgPostes').addEventListener('close', () => { sansNomDehors(); renderLignes(); rendu(); }); // noms de métiers à jour dans les lignes
 
 // ---------- Ticket fournisseur : photo → lignes ----------
 // ponytail: lecture ligne par ligne (prix = nombre à 2 décimales), pensée pour les tickets simples ;
