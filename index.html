@@ -43,10 +43,20 @@ input,select,textarea{display:block;width:100%;margin-top:4px;font:inherit;font-
 input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
 textarea{resize:vertical}
 .hint{width:100%;margin-bottom:16px;background:#fff6d9;text-align:left}
-.ligne{display:grid;grid-template-columns:70px 64px 1fr 96px;grid-template-areas:"d d d x" "q u p t";gap:8px;padding:12px 0;border-bottom:1px solid var(--line)}
+.ligne{display:grid;grid-template-columns:70px 64px 1fr 96px;grid-template-areas:"d d d x" "q u p t" "c c c r";gap:8px;padding:12px 0;border-bottom:1px solid var(--line)}
 .ligne:first-child{padding-top:0}
-.ligne .d{grid-area:d}.ligne .q{grid-area:q}.ligne .u{grid-area:u}.ligne .p{grid-area:p}
-.ligne .x{grid-area:x;justify-self:end;align-self:end;color:var(--danger);background:#fbeceb}
+.ligne .d{grid-area:d}.ligne .q{grid-area:q}.ligne .u{grid-area:u}.ligne .p{grid-area:p}.ligne .c{grid-area:c}.ligne .r{grid-area:r}
+.x,button.danger{color:var(--danger);background:#fbeceb}
+.ligne .x{grid-area:x;justify-self:end;align-self:end}
+.ristourne{margin-top:14px;max-width:260px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:4px}
+.chips button{white-space:nowrap;padding:8px 10px}
+.chips button.on{background:var(--brand);color:#fff}
+.po{display:grid;grid-template-columns:1fr 64px auto;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.po small{display:block;color:var(--muted)}
+.po input{margin:0}
+.pe{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end;padding:10px 0;border-bottom:1px solid var(--line)}
+.pe>input{grid-column:1/4}
 .ligne .t{grid-area:t;align-self:end;text-align:right;font-weight:600;padding-bottom:10px}
 .add{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 .preview{min-width:0}
@@ -85,6 +95,9 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
 .inv td{padding:8px;border-bottom:1px solid #e5e8ee;vertical-align:top}
 .inv .n{text-align:right;white-space:nowrap}
 .inv .vide{color:#aaa;text-align:center}
+.inv td small{color:#777}
+.inv .grp td{padding-top:14px;font-weight:700;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:#1f3a5f;background:#f4f7fb}
+.inv .st td{font-weight:600;text-align:right;border-bottom:2px solid #dde2ea}
 .inv .tot{width:320px;margin:16px 0 0 auto}
 .inv .tot div{display:flex;justify-content:space-between;padding:4px 8px}
 .inv .tot .big{margin-top:4px;padding:9px 8px;background:#eef3fa;border-radius:4px;font-weight:700;font-size:16px}
@@ -156,12 +169,14 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
       <h2>Lignes</h2>
       <div id="lignes"></div>
       <div class="add">
+        <button id="bPostes" class="primary">📋 Postes</button>
         <button data-add="article">＋ Article</button>
         <button data-add="km">＋ Déplacement</button>
         <button data-add="heure">＋ Main-d'œuvre</button>
         <button id="bTicket">📷 Ticket</button>
         <input type="file" id="fTicket" accept="image/*" hidden>
       </div>
+      <label class="ristourne">Ristourne sur toute la facture<input name="f.ristourne" placeholder="ex. 5 % ou 30" inputmode="decimal" autocomplete="off"></label>
     </div>
 
     <div class="card">
@@ -182,6 +197,11 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
 <dialog id="dlgHist">
   <div class="dlg-h"><h2>Historique</h2><button autofocus onclick="this.closest('dialog').close()">Fermer</button></div>
   <div class="dlg-b" id="hist"></div>
+</dialog>
+
+<dialog id="dlgPostes">
+  <div class="dlg-h"><h2>Postes</h2><button autofocus onclick="this.closest('dialog').close()">Fermer</button></div>
+  <div class="dlg-b" id="postes"></div>
 </dialog>
 
 <dialog id="dlgTicket">
@@ -218,7 +238,16 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
 <script>
 const $ = s => document.querySelector(s);
 const KEY = 'factures-v1';
-const DEFAUT = {nom:'', adresse:'', tel:'', email:'', entreprise:'', iban:'', bic:'', km:'0,45', heure:'45', delai:'30', notes:'', marge:'20', ticketTvac:false};
+const DEFAUT = {nom:'', adresse:'', tel:'', email:'', entreprise:'', iban:'', bic:'', km:'0,45', heure:'45', delai:'30', notes:'', marge:'20', ticketTvac:false, ticketCat:''};
+// Catalogue de départ : « poste|unité » séparés par « ; ». Les prix se remplissent dans l'app.
+const catalogueDefaut = () => [
+  ['⚡', 'Électricité', "Saignée|m; Rebouchage de saignée|m; Pose de gaine|m; Tirage de câble|m; Pose de boîte d'encastrement|pce; Ajout de prise|pce; Ajout d'interrupteur|pce; Point lumineux|pce; Pose de luminaire|pce; Remplacement prise ou interrupteur|pce; Ajout d'un circuit|pce; Disjoncteur ou différentiel au tableau|pce; Remplacement du tableau électrique|forfait; Mise à la terre|forfait; Liaisons équipotentielles|forfait; Recherche de panne|h; Schéma unifilaire et plan de position|forfait; Préparation au contrôle RGIE|forfait"],
+  ['🧱', 'Carrelage', 'Dépose ancien carrelage|m²; Ragréage ou chape|m²; Pose carrelage sol|m²; Pose faïence murale|m²; Pose plinthes|m; Joints|m²; Profils d\'angle|m; Étanchéité douche|m²; Joints silicone|m'],
+  ['🚿', 'Plomberie', 'Remplacement robinet ou mitigeur|pce; Pose WC|pce; Pose lavabo ou évier|pce; Pose douche ou baignoire|pce; Pose boiler|pce; Alimentation eau|m; Évacuation PVC|m; Remplacement siphon ou flexible|pce; Débouchage|forfait; Recherche de fuite|h'],
+  ['🎨', 'Peinture', 'Protection et bâchage|forfait; Rebouchage et ponçage|m²; Sous-couche|m²; Peinture murs|m²; Peinture plafond|m²; Peinture portes et boiseries|pce; Pose papier peint ou fibre de verre|m²'],
+  ['🪣', 'Plafonnage', 'Plafonnage murs|m²; Plafonnage plafond|m²; Enduisage et lissage|m²; Pose plaques de plâtre|m²; Cloison ossature et plaques|m²; Faux plafond|m²; Cornières d\'angle|m; Réparation fissures|forfait'],
+  ['🔨', 'Bricolage', 'Montage de meuble|pce; Fixation murale (étagère, TV…)|pce; Pose tringle ou store|pce; Poignée, charnière ou serrure|pce; Petits travaux divers|h; Évacuation des déchets|forfait']
+].map(([icone, nom, postes]) => ({icone, nom, postes: postes.split('; ').map(p => { const [n, u] = p.split('|'); return {nom: n, unite: u, mo: '', mat: ''}; })}));
 const MENTIONS = {
   franchise: 'Régime particulier de franchise des petites entreprises – TVA non applicable.',
   auto: 'Autoliquidation – TVA due par le cocontractant (art. 20, A.R. n° 1).'
@@ -232,17 +261,26 @@ const plusJours = (iso, n) => { if (!iso) return ''; const d = new Date(iso + 'T
 const dt = s => s ? new Date(s + 'T12:00').toLocaleDateString('fr-BE') : '';
 const tactile = matchMedia('(pointer: coarse)').matches;
 
+// Remise / ristourne : « 10 % » = pourcentage, « 5 » = euros. Renvoie des centimes à déduire.
+const remiseCts = (cts, r) => { const s = String(r ?? '').trim(); if (!s) return 0;
+  return Math.abs(s.includes('%') ? Math.round(cts * num(s.replace('%', '')) / 100) : Math.round(num(s) * 100)); };
+const remiseTxt = r => String(r).includes('%') ? `${nbFr(Math.abs(num(String(r).replace('%', ''))))} %` : eur.format(Math.abs(num(r)));
+const nbFr = n => n.toLocaleString('fr-BE');
+
 // Montants en centimes pour éviter les erreurs d'arrondi.
 function calc(f) {
-  const lignes = f.lignes.map(l => Math.round(num(l.qte) * num(l.pu) * 100));
-  const ht = lignes.reduce((a, b) => a + b, 0);
+  const lignes = f.lignes.map(l => { const b = Math.round(num(l.qte) * num(l.pu) * 100); return b - remiseCts(b, l.remise); });
+  const brut = lignes.reduce((a, b) => a + b, 0);
+  const ristourne = remiseCts(brut, f.ristourne), ht = brut - ristourne;
   const taux = MENTIONS[f.tva] ? 0 : num(f.tva);
   const tva = Math.round(ht * taux / 100);
-  return {lignes, ht, taux, tva, ttc: ht + tva};
+  return {lignes, brut, ristourne, ht, taux, tva, ttc: ht + tva};
 }
 // Auto-contrôle du calcul (message dans la console s'il est faux)
 (() => { const r = calc({tva: '21', lignes: [{qte: '3', pu: '19,99'}, {qte: '12', pu: '0.45'}]});
-  console.assert(r.ht === 6537 && r.tva === 1373 && r.ttc === 7910, 'Calcul de facture faux', r); })();
+  console.assert(r.ht === 6537 && r.tva === 1373 && r.ttc === 7910, 'Calcul de facture faux', r);
+  const s = calc({tva: '21', ristourne: '10 %', lignes: [{qte: '3', pu: '19,99'}, {qte: '12', pu: '0.45', remise: '0,40'}]});
+  console.assert(s.brut === 6497 && s.ristourne === 650 && s.ht === 5847 && s.tva === 1228 && s.ttc === 7075, 'Calcul des remises faux', s); })();
 
 // ---------- Données (localStorage) ----------
 let db, alerteSauvegarde = false;
@@ -270,6 +308,7 @@ function creer(base) {
     tva: base?.tva ?? db.factures.at(-1)?.tva ?? '21',
     client: base ? {...base.client} : {nom: '', adresse: '', email: '', tva: ''},
     lignes: base ? base.lignes.map(l => ({...l})) : [{desc: '', qte: '1', unite: '', pu: ''}],
+    ristourne: base?.ristourne ?? '',
     notes: base ? base.notes : db.reglages.notes
   };
   db.factures.push(f);
@@ -286,8 +325,8 @@ function remplir() {
   const f = cur();
   document.querySelectorAll('[name]').forEach(el => {
     const [s, k] = el.name.split('.');
-    const v = s === 'f' ? f[k] : s === 'c' ? f.client[k] : s === 'r' ? db.reglages[k] : undefined;
-    if (v !== undefined) el.value = v;
+    if (s === 'l') return; // lignes : gérées par renderLignes
+    el.value = (s === 'f' ? f[k] : s === 'c' ? f.client[k] : db.reglages[k]) ?? ''; // ?? '' : pas de reste de la facture précédente
   });
   const noms = [...new Set(db.factures.map(x => x.client.nom.trim()).filter(Boolean))];
   $('#clients').innerHTML = noms.map(n => `<option value="${esc(n)}">`).join('');
@@ -304,8 +343,12 @@ function renderLignes() {
       <label class="u">Unité<input name="l.unite.${i}" value="${esc(l.unite)}"></label>
       <label class="p">Prix unit. €<input name="l.pu.${i}" inputmode="decimal" value="${esc(l.pu)}"></label>
       <output class="t" id="t${i}">${fmt(t.lignes[i])}</output>
+      <label class="c">Métier<select name="l.cat.${i}">${optionsCat(l.cat)}</select></label>
+      <label class="r">Remise<input name="l.remise.${i}" placeholder="10 % ou 5" inputmode="decimal" value="${esc(l.remise)}"></label>
     </div>`).join('');
 }
+const optionsCat = sel => '<option value="">Divers</option>' + db.catalogue.map(c =>
+  `<option value="${esc(c.nom)}" ${c.nom === sel ? 'selected' : ''}>${esc(c.icone)} ${esc(c.nom)}</option>`).join('');
 
 function clientConnu(nom) {
   nom = nom.trim().toLowerCase();
@@ -373,6 +416,16 @@ function rendu() {
   const f = cur(), r = db.reglages, t = calc(f), c = f.client;
   const franchise = f.tva === 'franchise';
   const lignes = f.lignes.map((l, i) => [l, t.lignes[i]]).filter(([l]) => l.desc || num(l.pu));
+  // Groupes par métier, dans l'ordre du catalogue ; « Divers » (sans métier, ou métier supprimé) en dernier.
+  const noms = db.catalogue.map(c => c.nom);
+  const groupes = [...noms, ''].map(nom => [nom, lignes.filter(([l]) => (noms.includes(l.cat) ? l.cat : '') === nom)]).filter(([, ls]) => ls.length);
+  const tr = ([l, tot]) => `
+        <tr><td>${esc(l.desc)}${String(l.remise ?? '').trim() ? `<br><small>Remise ${remiseTxt(l.remise)}</small>` : ''}</td>
+        <td class="n">${nbFr(num(l.qte))} ${esc(l.unite)}</td><td class="n">${eur.format(num(l.pu))}</td><td class="n">${fmt(tot)}</td></tr>`;
+  const corps = groupes.some(([nom]) => nom)
+    ? groupes.map(([nom, ls]) => `<tr class="grp"><td colspan="4">${esc(nom || 'Divers')}</td></tr>${ls.map(tr).join('')}
+        <tr class="st"><td colspan="3">Sous-total ${esc(nom || 'Divers')}</td><td class="n">${fmt(ls.reduce((a, [, x]) => a + x, 0))}</td></tr>`).join('')
+    : lignes.map(tr).join('');
   $('#facture').innerHTML = `
     <div class="top">
       <div class="em">
@@ -396,12 +449,11 @@ function rendu() {
     </div>
     <table>
       <thead><tr><th>Désignation</th><th class="n">Qté</th><th class="n">Prix unit.</th><th class="n">Total${franchise ? '' : ' HTVA'}</th></tr></thead>
-      <tbody>${lignes.map(([l, tot]) => `
-        <tr><td>${esc(l.desc)}</td><td class="n">${num(l.qte).toLocaleString('fr-BE')} ${esc(l.unite)}</td>
-        <td class="n">${eur.format(num(l.pu))}</td><td class="n">${fmt(tot)}</td></tr>`).join('')
-        || '<tr><td colspan="4" class="vide">Aucune ligne</td></tr>'}</tbody>
+      <tbody>${corps || '<tr><td colspan="4" class="vide">Aucune ligne</td></tr>'}</tbody>
     </table>
     <div class="tot">
+      ${t.ristourne ? `<div><span>Total${franchise ? '' : ' HTVA'} avant ristourne</span><span>${fmt(t.brut)}</span></div>
+      <div><span>Ristourne${String(f.ristourne).includes('%') ? ` ${remiseTxt(f.ristourne)}` : ''}</span><span>− ${fmt(t.ristourne)}</span></div>` : ''}
       ${franchise ? '' : `<div><span>Total HTVA</span><span>${fmt(t.ht)}</span></div>
       <div><span>${f.tva === 'auto' ? 'TVA (autoliquidation)' : `TVA ${t.taux} %`}</span><span>${fmt(t.tva)}</span></div>`}
       <div class="big"><span>${franchise || f.tva === 'auto' ? 'Total à payer' : 'Total TVAC'}</span><span>${fmt(t.ttc)}</span></div>
@@ -482,6 +534,81 @@ $('#bPdf').onclick = async () => {
     b.disabled = false; majPdf();
   }
 };
+
+// ---------- Postes prédéfinis (catalogue par métier) ----------
+let posteCat = 0, posteEdit = false;
+const prixTxt = v => num(v) ? eur.format(num(v)) : '—';
+
+function renderPostes() {
+  const cats = db.catalogue, c = cats[posteCat];
+  const sansPrix = c && c.postes.every(p => !num(p.mo) && !num(p.mat));
+  $('#postes').innerHTML = `
+    <div class="chips">${cats.map((x, i) => `<button data-pc="${i}" class="${i === posteCat ? 'on' : ''}">${esc(x.icone)} ${esc(x.nom)}</button>`).join('')}
+      ${posteEdit ? '<button data-pact="cat+">＋ Métier</button>' : ''}</div>
+    <p><button data-pact="edit">${posteEdit ? '✓ Terminé' : '✏️ Modifier les postes et les prix'}</button></p>
+    ${!c ? '<p class="note">Aucun métier. Touche ✏️ puis « ＋ Métier ».</p>' : posteEdit ? `
+      <label>Nom du métier<input data-cn value="${esc(c.nom)}"></label>
+      ${c.postes.map((p, i) => `
+        <div class="pe">
+          <input data-pi="${i}" data-pk="nom" value="${esc(p.nom)}" placeholder="Nom du poste" aria-label="Nom du poste">
+          <button class="x" data-pact="del" data-pi="${i}" aria-label="Supprimer le poste">✕</button>
+          <label>Unité<input data-pi="${i}" data-pk="unite" value="${esc(p.unite)}"></label>
+          <label>Main-d'œuvre €<input data-pi="${i}" data-pk="mo" inputmode="decimal" value="${esc(p.mo)}"></label>
+          <label>Fourniture €<input data-pi="${i}" data-pk="mat" inputmode="decimal" value="${esc(p.mat)}"></label>
+        </div>`).join('')}
+      <div class="add"><button data-pact="poste+">＋ Poste</button><button class="danger" data-pact="cat-">Supprimer ce métier</button></div>`
+    : `${sansPrix ? '<p class="note">Pas encore de prix dans ce métier : touche ✏️ pour les remplir une fois pour toutes.</p>' : ''}
+      ${c.postes.map((p, i) => `
+        <div class="po">
+          <div><b>${esc(p.nom)}</b><small>${esc(p.unite)} · main-d'œuvre ${prixTxt(p.mo)} · fourniture ${prixTxt(p.mat)}</small></div>
+          <input data-pq="${i}" inputmode="decimal" value="1" aria-label="Quantité">
+          <button class="primary" data-pact="add" data-pi="${i}" aria-label="Ajouter à la facture">＋</button>
+        </div>`).join('')}`}`;
+}
+
+// Un poste = une ligne main-d'œuvre + une ligne fourniture (une seule si l'un des prix est vide).
+function ajouterPoste(c, p, qte) {
+  const f = cur(), deux = num(p.mo) && num(p.mat);
+  const base = {qte: String(qte || '').trim() || '1', unite: p.unite, cat: c.nom, remise: ''};
+  f.lignes = f.lignes.filter(l => l.desc || num(l.pu)); // retire la ligne vide de départ
+  if (num(p.mo) || !num(p.mat)) f.lignes.push({...base, desc: deux ? `${p.nom} – main-d'œuvre` : p.nom, pu: p.mo});
+  if (num(p.mat)) f.lignes.push({...base, desc: deux ? `${p.nom} – fourniture` : p.nom, pu: p.mat});
+  renderLignes(); modifie();
+}
+
+$('#postes').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  const cats = db.catalogue, c = cats[posteCat], a = b.dataset.pact;
+  if (b.dataset.pc) posteCat = +b.dataset.pc;
+  else if (a === 'edit') posteEdit = !posteEdit;
+  else if (a === 'cat+') { cats.push({icone: '🔧', nom: 'Nouveau métier', postes: []}); posteCat = cats.length - 1; }
+  else if (a === 'cat-') { if (!confirm(`Supprimer le métier « ${c.nom} » et tous ses postes ?`)) return; cats.splice(posteCat, 1); posteCat = 0; }
+  else if (a === 'poste+') c.postes.push({nom: '', unite: 'pce', mo: '', mat: ''});
+  else if (a === 'del') { if (!confirm(`Supprimer le poste « ${c.postes[b.dataset.pi].nom} » ?`)) return; c.postes.splice(+b.dataset.pi, 1); }
+  else if (a === 'add') {
+    ajouterPoste(c, c.postes[b.dataset.pi], $(`[data-pq="${b.dataset.pi}"]`).value);
+    b.textContent = '✓'; setTimeout(() => b.textContent = '＋', 900);
+    return;
+  } else return;
+  sauver(); renderPostes();
+  if (a === 'poste+') [...document.querySelectorAll('.pe input')].at(-4).focus(); // nom du nouveau poste
+});
+
+['input', 'change'].forEach(t => $('#postes').addEventListener(t, e => {
+  const el = e.target, c = db.catalogue[posteCat];
+  if (el.hasAttribute('data-cn')) {
+    // renommer un métier : les lignes des factures qui le portent suivent
+    for (const f of db.factures) for (const l of f.lignes) if (l.cat === c.nom) l.cat = el.value;
+    c.nom = el.value;
+    $(`[data-pc="${posteCat}"]`).textContent = `${c.icone} ${c.nom}`;
+  } else if (el.dataset.pk) c.postes[el.dataset.pi][el.dataset.pk] = el.value;
+  else return;
+  sauver();
+}));
+
+$('#bPostes').onclick = () => { posteEdit = false; renderPostes(); $('#dlgPostes').showModal(); };
+$('#dlgPostes').addEventListener('close', () => { renderLignes(); rendu(); }); // noms de métiers à jour dans les lignes
 
 // ---------- Ticket fournisseur : photo → lignes ----------
 // ponytail: lecture ligne par ligne (prix = nombre à 2 décimales), pensée pour les tickets simples ;
@@ -575,6 +702,7 @@ function renderTicket() {
     <div class="grid">
       <label>Marge matériel (%)<input id="tMarge" inputmode="decimal" value="${esc(r.marge)}"></label>
       <label class="chk"><input type="checkbox" id="tTvac" ${r.ticketTvac ? 'checked' : ''}> Prix du ticket TVAC (21 %)</label>
+      <label class="full">Métier des lignes<select id="tCat">${optionsCat(r.ticketCat)}</select></label>
     </div>
     <p class="note">${it.length ? `${it.length} ligne(s) trouvée(s). Vérifie et corrige avant d'ajouter.` : 'Aucune ligne avec un prix trouvée. Reprends la photo bien à plat, avec plus de lumière.'}</p>
     ${it.map((x, i) => `
@@ -595,6 +723,7 @@ function renderTicket() {
   const el = e.target;
   if (el.id === 'tMarge') db.reglages.marge = el.value;
   else if (el.id === 'tTvac') db.reglages.ticketTvac = el.checked;
+  else if (el.id === 'tCat') db.reglages.ticketCat = el.value;
   else if (el.dataset.tk) {
     const x = ticket.items[el.dataset.ti];
     x[el.dataset.tk] = el.type === 'checkbox' ? el.checked : el.value;
@@ -610,7 +739,7 @@ $('#ticket').addEventListener('click', e => {
   const f = cur();
   f.lignes = f.lignes.filter(l => l.desc || num(l.pu)); // retire la ligne vide de départ
   for (const x of ticket.items.filter(x => x.ok))
-    f.lignes.push({desc: x.desc, qte: nb(x.qte), unite: '', pu: (venteCts(x) / 100).toFixed(2).replace('.', ',')});
+    f.lignes.push({desc: x.desc, qte: nb(x.qte), unite: '', pu: (venteCts(x) / 100).toFixed(2).replace('.', ','), cat: db.reglages.ticketCat || ''});
   $('#dlgTicket').close();
   renderLignes(); modifie();
 });
@@ -637,6 +766,7 @@ $('#fImport').onchange = async e => {
 // ---------- Démarrage ----------
 function demarrer() {
   db.reglages = {...DEFAUT, ...db.reglages};
+  db.catalogue ??= catalogueDefaut();
   if (cur()) ouvrir(db.courante);
   else if (db.factures.length) ouvrir(db.factures.at(-1).id);
   else creer();
