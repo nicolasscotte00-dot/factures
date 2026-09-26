@@ -57,6 +57,8 @@ textarea{resize:vertical}
 .po input{margin:0}
 .pe{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end;padding:10px 0;border-bottom:1px solid var(--line)}
 .pe>input{grid-column:1/4}
+.contents{display:contents}
+.pe .s2{grid-column:span 2}
 .ligne .t{grid-area:t;align-self:end;text-align:right;font-weight:600;padding-bottom:10px}
 .add{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 .preview{min-width:0}
@@ -173,6 +175,7 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
         <button data-add="article">＋ Article</button>
         <button data-add="km">＋ Déplacement</button>
         <button data-add="heure">＋ Main-d'œuvre</button>
+        <span class="contents" id="eqBtns"></span>
         <button id="bTicket">📷 Ticket</button>
         <input type="file" id="fTicket" accept="image/*" hidden>
       </div>
@@ -224,6 +227,13 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
       <label>Taux horaire (€/h)<input name="r.heure" inputmode="decimal"></label>
       <label>Délai de paiement (jours)<input name="r.delai" inputmode="numeric"></label>
       <label class="full">Notes par défaut (nouvelles factures)<textarea name="r.notes" rows="2"></textarea></label>
+    </div>
+    <h3>Équipe</h3>
+    <p class="note">Chaque personne a son taux horaire facturé au client. Elle apparaît ensuite comme bouton « ＋ » dans les lignes de la facture.</p>
+    <div id="equipe"></div>
+    <div class="add">
+      <button data-eact="associe">＋ Ajouter un associé</button>
+      <button data-eact="travailleur">＋ Ajouter un travailleur</button>
     </div>
     <h3>Sauvegarde</h3>
     <p class="note">Les factures sont enregistrées sur cet appareil uniquement. Sur iPhone, ajoute l'app à l'écran d'accueil et fais une sauvegarde de temps en temps.</p>
@@ -391,6 +401,12 @@ document.addEventListener('click', e => {
     }[b.dataset.add]);
     renderLignes(); modifie();
     $(`[name="l.${b.dataset.add === 'article' ? 'desc' : 'qte'}.${f.lignes.length - 1}"]`).focus();
+  } else if (b.dataset.eq) {
+    const p = db.equipe.find(x => x.id === b.dataset.eq);
+    f.lignes = f.lignes.filter(l => l.desc || num(l.pu)); // retire la ligne vide de départ
+    f.lignes.push({desc: `Main-d'œuvre – ${p.nom.trim()} (${STATUT[p.statut]})`, qte: '', unite: 'h', pu: p.taux, cat: '', remise: ''});
+    renderLignes(); modifie();
+    $(`[name="l.qte.${f.lignes.length - 1}"]`).focus();
   } else if (b.dataset.del) {
     f.lignes.splice(+b.dataset.del, 1);
     renderLignes(); modifie();
@@ -593,7 +609,7 @@ $('#postes').addEventListener('click', e => {
     return;
   } else return;
   sauver(); renderPostes();
-  if (a === 'poste+') [...document.querySelectorAll('.pe input')].at(-4).focus(); // nom du nouveau poste
+  if (a === 'poste+') [...document.querySelectorAll('#postes .pe input')].at(-4).focus(); // nom du nouveau poste
 });
 
 ['input', 'change'].forEach(t => $('#postes').addEventListener(t, e => {
@@ -749,6 +765,45 @@ $('#ticket').addEventListener('click', e => {
 $('#bTicket').onclick = () => $('#fTicket').click();
 $('#fTicket').onchange = e => { const file = e.target.files[0]; e.target.value = ''; if (file) lireImage(file); };
 
+// ---------- Équipe : associés (avec moi) et travailleurs (pour moi), chacun son taux facturé ----------
+const STATUT = {associe: 'associé', travailleur: 'ouvrier'}; // tel qu'écrit sur la facture
+
+function renderEquipe() {
+  $('#equipe').innerHTML = db.equipe.map((p, i) => `
+    <div class="pe">
+      <input data-ei="${i}" data-ek="nom" value="${esc(p.nom)}" placeholder="Nom (ex. Paul Martin)" aria-label="Nom">
+      <button class="x" data-eact="del" data-ei="${i}" aria-label="Retirer de l'équipe">✕</button>
+      <label class="s2">Statut<select data-ei="${i}" data-ek="statut">
+        <option value="associe" ${p.statut === 'associe' ? 'selected' : ''}>Associé (avec moi)</option>
+        <option value="travailleur" ${p.statut === 'travailleur' ? 'selected' : ''}>Travailleur (pour moi)</option>
+      </select></label>
+      <label>€/h facturé<input data-ei="${i}" data-ek="taux" inputmode="decimal" value="${esc(p.taux)}" placeholder="à remplir"></label>
+    </div>`).join('');
+  renderEqBtns();
+}
+const renderEqBtns = () => $('#eqBtns').innerHTML = db.equipe.filter(p => p.nom.trim())
+  .map(p => `<button data-eq="${p.id}">＋ ${esc(p.nom.trim())} (${STATUT[p.statut]})</button>`).join('');
+
+$('#dlgReglages').addEventListener('click', e => {
+  const b = e.target.closest('[data-eact]');
+  if (!b) return;
+  const a = b.dataset.eact;
+  if (a === 'del') {
+    const p = db.equipe[b.dataset.ei];
+    if (!confirm(`Retirer ${p.nom.trim() || 'cette personne'} de l'équipe ?`)) return;
+    db.equipe.splice(+b.dataset.ei, 1);
+  } else db.equipe.push({id: Date.now().toString(36), nom: '', statut: a, taux: a === 'associe' ? db.reglages.heure : ''});
+  sauver(); renderEquipe();
+  if (a !== 'del') [...document.querySelectorAll('#equipe [data-ek="nom"]')].at(-1).focus();
+});
+['input', 'change'].forEach(t => $('#equipe').addEventListener(t, e => {
+  const el = e.target;
+  if (!el.dataset.ek) return;
+  db.equipe[el.dataset.ei][el.dataset.ek] = el.value;
+  sauver(); renderEqBtns();
+}));
+$('#dlgReglages').addEventListener('close', () => { db.equipe = db.equipe.filter(p => p.nom.trim()); sauver(); renderEquipe(); }); // sans nom = abandonné
+
 // ---------- Sauvegarde (export / import) ----------
 $('#bExport').onclick = () =>
   telecharger(new File([JSON.stringify(db, null, 1)], `factures-sauvegarde-${today()}.json`, {type: 'application/json'}));
@@ -769,6 +824,8 @@ $('#fImport').onchange = async e => {
 function demarrer() {
   db.reglages = {...DEFAUT, ...db.reglages};
   db.catalogue ??= catalogueDefaut();
+  db.equipe ??= [];
+  renderEquipe();
   if (cur()) ouvrir(db.courante);
   else if (db.factures.length) ouvrir(db.factures.at(-1).id);
   else creer();
