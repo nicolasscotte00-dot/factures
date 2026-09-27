@@ -21,6 +21,10 @@ if (PROFIL) {
 </script>
 <title>Factures</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js" defer onload="qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8']; rendu()"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=EB+Garamond:wght@400;600&family=Great+Vibes&display=swap">
 <style>
 :root{--bg:#f3f5f8;--card:#fff;--ink:#1d2433;--muted:#6b7385;--line:#dde2ea;--accent:#1f5fbf;--brand:#1f3a5f;--danger:#c0392b}
 *{box-sizing:border-box}
@@ -88,6 +92,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .hi.on button:first-child{outline:2px solid var(--accent)}
 .hi small{display:block;color:var(--muted)}
 input[type=checkbox]{width:22px;height:22px;margin:0;flex:none}
+input[type=color]{height:44px;padding:3px;cursor:pointer}
 .chk{display:flex;align-items:center;gap:8px;color:var(--ink)}
 .tl{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
 .tl .n3{grid-column:2;display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end}
@@ -95,30 +100,76 @@ input[type=checkbox]{width:22px;height:22px;margin:0;flex:none}
 .tl.off{opacity:.45}
 details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;border-radius:8px;max-height:220px;overflow:auto}
 /* ---------- La facture (A4 = 794 px de large) ---------- */
-.inv{width:794px;min-height:1120px;display:flex;flex-direction:column;padding:56px 60px;background:#fff;color:#222;font:13px/1.45 "Helvetica Neue",Arial,sans-serif;letter-spacing:.01px/* sinon le PDF colle les mots (html2canvas) */;box-shadow:0 2px 14px rgba(0,0,0,.12);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+/* --c : couleur principale, --c2 : sa version pâle (calculée en JS), --t : couleur du total */
+.inv{--c:#1f3a5f;--c2:#eef3fa;--t:#c0392b;position:relative;width:794px;min-height:1120px;display:flex;flex-direction:column;padding:46px 56px;background:#fff;color:#222;font:13px/1.45 "Helvetica Neue",Arial,sans-serif;letter-spacing:.01px/* sinon le PDF colle les mots (html2canvas) */;box-shadow:0 2px 14px rgba(0,0,0,.12);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.inv .cadre,.inv .filet{display:none}
 .inv .top{display:flex;justify-content:space-between;gap:24px}
-.inv .em b{font-size:18px;color:#1f3a5f}
+.inv .em .nom{display:block;font-size:19px;font-weight:700;color:var(--c);margin-bottom:2px}
 .inv .em .logo{display:block;max-height:100px;max-width:240px;margin-bottom:10px}
-.inv h3{margin:0 0 6px;font-size:30px;letter-spacing:.08em;color:#1f3a5f;text-align:right}
+.inv .titre{margin:0 0 8px;font-size:30px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--c);text-align:right}
 .inv .meta{text-align:right;white-space:nowrap}
-.inv .cl{width:320px;margin:36px 0 28px auto;padding:14px 16px;border:1px solid #dde2ea;border-radius:6px}
+.inv .cl{width:320px;margin:22px 0 18px auto;padding:14px 16px;border:1px solid #dde2ea;border-left:4px solid var(--c);border-radius:6px}
 .inv .cl small{display:block;color:#888;text-transform:uppercase;font-size:10px;letter-spacing:.06em}
 .inv .cl b{font-size:15px}
 .inv table{width:100%;border-collapse:collapse}
-.inv th{background:#1f3a5f;color:#fff;text-align:left;padding:8px;font-weight:600}
-.inv td{padding:8px;border-bottom:1px solid #e5e8ee;vertical-align:top}
+.inv th{background:var(--c);color:#fff;text-align:left;padding:9px 8px;font-weight:600}
+.inv td{padding:6px 8px;border-bottom:1px solid #e5e8ee;vertical-align:top}
 .inv .n{text-align:right;white-space:nowrap}
 .inv .vide{color:#aaa;text-align:center}
 .inv td small{color:#777}
-.inv .grp td{padding-top:14px;font-weight:700;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:#1f3a5f;background:#f4f7fb}
+.inv .grp td{padding-top:10px;font-weight:700;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--c);background:var(--c2)}
 .inv .st td{font-weight:600;text-align:right;border-bottom:2px solid #dde2ea}
 .inv .tot{width:320px;margin:16px 0 0 auto}
 .inv .tot div{display:flex;justify-content:space-between;padding:4px 8px}
-.inv .tot .big{margin-top:4px;padding:9px 8px;background:#eef3fa;border-radius:4px;font-weight:700;font-size:16px}
+.inv .tot .big{margin-top:6px;padding:10px 10px;background:var(--c2);border-radius:4px;font-weight:700;font-size:17px;color:var(--c)}
+.inv .tot .big span:last-child{color:var(--t)}
 .inv .mention{margin:18px 0 0;font-style:italic;color:#555}
-.inv .pay{margin-top:24px}
+.inv .pay{margin-top:14px;display:flex;align-items:center;gap:18px}
+.inv .pay .qr{flex:none;text-align:center;font-size:10px;color:#666;line-height:1.3}
+.inv .pay .qr img{display:block;width:100px;height:100px;image-rendering:pixelated;margin:0 auto 4px}
 .inv .notes{margin-top:16px}
 .inv .foot{margin-top:auto;padding-top:20px;border-top:1px solid #dde2ea;font-size:11px;color:#777;text-align:center}
+/* Thème Luxe doré : noir et or, calligraphie, filets et en-têtes en dorure */
+.inv.luxe{--or:linear-gradient(90deg,#7a5c14,#c9a23a 22%,#f6e08f 50%,#c9a23a 78%,#7a5c14);font:14px/1.35 "Cormorant Garamond",Georgia,serif;color:#262626;padding:52px 64px}
+.inv.luxe .cadre{display:block;position:absolute;inset:20px;border:1.5px solid var(--c)}
+.inv.luxe .cadre::after{content:"";position:absolute;inset:5px;border:.6px solid var(--c)}
+.inv.luxe .filet{display:block;height:2px;background:var(--or);margin:16px 0 2px}
+.inv.luxe .titre,.inv.luxe .em .nom,.inv.luxe .tot .big span:first-child{font-family:"Great Vibes",cursive;font-weight:400;letter-spacing:0;text-transform:none}
+.inv.luxe .titre{font-size:56px;line-height:.85;margin-bottom:6px}
+.inv.luxe .em .nom{font-size:32px;line-height:1}
+.inv.luxe .cl{border:none;border-left:2px solid var(--c);border-radius:0;background:var(--c2)}
+.inv.luxe thead tr{background:var(--or)}
+.inv.luxe th{background:none;color:#1c1c1c;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase}
+.inv.luxe td{border-bottom-color:#ece3cc}
+.inv.luxe .grp td{background:none;border-bottom:1px solid var(--c);font-size:13px;letter-spacing:.12em}
+.inv.luxe .st td{border-bottom:1px solid var(--c)}
+.inv.luxe .tot .big{background:var(--c2);color:var(--c);border-radius:0;align-items:center;border-top:1.5px solid var(--c);border-bottom:1.5px solid var(--c)}
+.inv.luxe .tot .big span:first-child{font-size:26px;line-height:1}
+.inv.luxe .tot .big span:last-child{font-size:19px}
+.inv.luxe .foot{border-top:none;color:#8a7440;letter-spacing:.08em;margin-top:0}
+/* Thème Formel : noir et blanc, sobre, typographie classique */
+.inv.formel{font:13.5px/1.4 "EB Garamond",Georgia,serif;color:#111}
+.inv.formel .titre{font-weight:600;font-size:26px;letter-spacing:.3em;border-top:2px solid #111;border-bottom:1px solid #111;padding:6px 0 4px}
+.inv.formel .em .nom{font-size:20px;font-weight:600}
+.inv.formel .cl{border:1px solid #111;border-radius:0}
+.inv.formel th{background:none;color:#111;border-top:1.5px solid #111;border-bottom:1px solid #111;font-size:11.5px;letter-spacing:.12em;text-transform:uppercase}
+.inv.formel td{border-bottom:1px solid #ddd}
+.inv.formel .grp td{background:none;font-style:italic;text-transform:none;letter-spacing:0;font-size:14px;color:#111}
+.inv.formel .st td{border-bottom:1px solid #111}
+.inv.formel .tot .big{background:none;border-radius:0;border-top:1.5px solid #111;border-bottom:4px double #111;color:#111}
+.inv.formel .foot{border-top:1px solid #111;color:#444}
+/* Thème Moderne : bandeau de couleur, formes arrondies */
+.inv.moderne .top{margin:-46px -56px 0;padding:40px 56px 30px;background:var(--c);color:#fff}
+.inv.moderne .titre,.inv.moderne .em .nom{color:#fff}
+.inv.moderne .cl{border:none;background:var(--c2);border-radius:12px}
+.inv.moderne th{background:none;color:var(--c);border-bottom:2px solid var(--c);text-transform:uppercase;font-size:11.5px;letter-spacing:.08em}
+.inv.moderne .grp td{border-radius:0}
+.inv.moderne .tot .big{border-radius:12px}
+.inv.moderne .foot{border-top:none;color:var(--c)}
+.themes{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:8px;margin-bottom:12px}
+.themes button{display:flex;flex-direction:column;align-items:flex-start;gap:6px;background:#f1f4f8;border:2px solid transparent;text-align:left}
+.themes button.on{border-color:var(--accent)}
+.themes i{display:block;width:100%;height:18px;border-radius:5px}
 .pre{white-space:pre-line}
 @media print{
   @page{size:A4;margin:0}
@@ -252,6 +303,13 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
       <button id="bLogoRetirer" class="danger">Retirer le logo</button>
       <input type="file" id="fLogo" accept="image/*" hidden>
     </div>
+    <h3>Apparence</h3>
+    <div class="themes" id="themes"></div>
+    <div class="grid">
+      <label>Couleur principale<input type="color" name="r.couleur"></label>
+      <label>Couleur du total<input type="color" name="r.couleurTotal"></label>
+    </div>
+    <p><label class="chk"><input type="checkbox" id="cQr"> QR code de paiement sur la facture (virement pré-rempli par l'app bancaire du client)</label></p>
     <h3>Équipe</h3>
     <p class="note">Chaque personne a ses tarifs facturés au client (heure, km, forfaits). Elle a ensuite ses boutons « ＋ » dans les lignes de la facture. Un forfait sans prix n'a pas de bouton.</p>
     <div id="equipe"></div>
@@ -272,7 +330,15 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
 <script>
 const $ = s => document.querySelector(s);
 const KEY = 'factures-v1';
-const DEFAUT = {nom:'', adresse:'', tel:'', email:'', entreprise:'', iban:'', bic:'', km:'0,45', heure:'45', demi:'100', journee:'200', delai:'30', notes:'', marge:'20', ticketTvac:false, ticketCat:''};
+const DEFAUT = {nom:'', adresse:'', tel:'', email:'', entreprise:'', iban:'', bic:'', km:'0,45', heure:'45', demi:'100', journee:'200', delai:'30', notes:'', marge:'20', ticketTvac:false, ticketCat:'',
+  theme:'classique', couleur:'#1f3a5f', couleurTotal:'#c0392b', qr:true};
+// Thèmes : c = couleur de la facture, app = barre du haut, accent = boutons principaux de l'app.
+const THEMES = {
+  classique: {nom: 'Classique', c: '#1f3a5f', app: '#1f3a5f', accent: '#1f5fbf'},
+  luxe: {nom: 'Luxe doré', c: '#b08a2e', app: '#1c1c1c', accent: '#8a6d1f'},
+  formel: {nom: 'Formel', c: '#111111', app: '#111827', accent: '#374151'},
+  moderne: {nom: 'Moderne', c: '#0f766e', app: '#0f766e', accent: '#0d9488'}
+};
 // Catalogue de départ : « poste|unité » séparés par « ; ». Les prix se remplissent dans l'app.
 const catalogueDefaut = () => [
   ['⚡', 'Électricité', "Saignée|m; Rebouchage de saignée|m; Pose de gaine|m; Tirage de câble|m; Pose de boîte d'encastrement|pce; Ajout de prise|pce; Ajout d'interrupteur|pce; Point lumineux|pce; Pose de luminaire|pce; Remplacement prise ou interrupteur|pce; Ajout d'un circuit|pce; Disjoncteur ou différentiel au tableau|pce; Remplacement du tableau électrique|forfait; Mise à la terre|forfait; Liaisons équipotentielles|forfait; Recherche de panne|h; Schéma unifilaire et plan de position|forfait; Préparation au contrôle RGIE|forfait"],
@@ -484,22 +550,28 @@ function rendu() {
     ? groupes.map(([nom, ls]) => `<tr class="grp"><td colspan="4">${esc(nom || 'Divers')}</td></tr>${ls.map(tr).join('')}
         <tr class="st"><td colspan="3">Sous-total ${esc(nom || 'Divers')}</td><td class="n">${fmt(ls.reduce((a, [, x]) => a + x, 0))}</td></tr>`).join('')
     : lignes.map(tr).join('');
+  appliquerTheme();
+  const th = THEMES[r.theme] ? r.theme : 'classique', coul = /^#[0-9a-f]{6}$/i.test(r.couleur) ? r.couleur : THEMES[th].c;
+  $('#facture').className = 'inv ' + th;
+  $('#facture').style.cssText = `--c:${coul};--c2:${melange(coul)};--t:${/^#[0-9a-f]{6}$/i.test(r.couleurTotal) ? r.couleurTotal : coul}`;
   $('#facture').innerHTML = `
+    <div class="cadre"></div>
     <div class="top">
       <div class="em">
         ${r.logo ? `<img class="logo" src="${esc(r.logo)}" alt="">` : ''}
-        <b>${esc(r.nom) || 'Votre nom (⚙︎ Réglages)'}</b>
+        <span class="nom">${esc(r.nom) || 'Votre nom (⚙︎ Réglages)'}</span>
         <div class="pre">${esc(r.adresse)}</div>
         ${r.tel ? `Tél. ${esc(r.tel)}<br>` : ''}${r.email ? `${esc(r.email)}<br>` : ''}
         ${r.entreprise ? `N° d'entreprise : ${esc(r.entreprise)}` : ''}
       </div>
       <div class="meta">
-        <h3>FACTURE</h3>
+        <h3 class="titre">Facture</h3>
         <div>N° <b>${esc(f.numero)}</b></div>
         <div>Date : ${dt(f.date)}</div>
         ${f.echeance ? `<div>Échéance : ${dt(f.echeance)}</div>` : ''}
       </div>
     </div>
+    <div class="filet"></div>
     <div class="cl">
       <small>Facturé à</small>
       <b>${esc(c.nom)}</b>
@@ -518,11 +590,51 @@ function rendu() {
       <div class="big"><span>${franchise || f.tva === 'auto' ? 'Total à payer' : 'Total TVAC'}</span><span>${fmt(t.ttc)}</span></div>
     </div>
     ${MENTIONS[f.tva] ? `<p class="mention">${MENTIONS[f.tva]}</p>` : ''}
-    ${r.iban ? `<div class="pay"><b>Paiement</b><br>À verser sur le compte ${esc(r.iban)}${r.bic ? ` (BIC ${esc(r.bic)})` : ''}${f.echeance ? ` avant le ${dt(f.echeance)}` : ''}<br>Communication : facture ${esc(f.numero)}</div>` : ''}
+    ${r.iban ? `<div class="pay">${qrPaiement(f, t)}<div><b>Paiement</b><br>À verser sur le compte ${esc(r.iban)}${r.bic ? ` (BIC ${esc(r.bic)})` : ''}${f.echeance ? ` avant le ${dt(f.echeance)}` : ''}<br>Communication : facture ${esc(f.numero)}</div></div>` : ''}
     ${f.notes ? `<div class="notes pre">${esc(f.notes)}</div>` : ''}
+    <div class="filet" style="margin-top:auto"></div>
     <div class="foot">${[r.nom, r.entreprise && "N° d'entreprise " + r.entreprise, r.iban].filter(Boolean).map(esc).join(' · ')}</div>`;
   $('#sous').textContent = franchise ? 'Total' : `HTVA ${fmt(t.ht)} · TVA ${fmt(t.tva)}`;
   $('#total').textContent = fmt(t.ttc);
+}
+
+// ---------- Thème et QR de paiement ----------
+// Couleur pâle dérivée (fonds de groupes, cadres) : mélange avec du blanc.
+const melange = (hex, t = .9) => '#' + [1, 3, 5].map(i =>
+  Math.round(parseInt(hex.slice(i, i + 2), 16) * (1 - t) + 255 * t).toString(16).padStart(2, '0')).join('');
+
+function appliquerTheme() { // la barre et les boutons de l'app suivent le thème
+  const th = THEMES[db.reglages.theme] || THEMES.classique, s = document.documentElement.style;
+  s.setProperty('--brand', th.app);
+  s.setProperty('--accent', th.accent);
+  $('meta[name=theme-color]').content = th.app;
+}
+
+function renderThemes() {
+  $('#themes').innerHTML = Object.entries(THEMES).map(([k, th]) => `
+    <button data-theme="${k}" class="${db.reglages.theme === k ? 'on' : ''}">
+      <i style="background:${k === 'luxe' ? 'linear-gradient(90deg,#1c1c1c 40%,#7a5c14 40%,#f6e08f 70%,#c9a23a)' : `linear-gradient(90deg,${th.app} 40%,${melange(th.c, .8)} 40%)`}"></i>${th.nom}
+    </button>`).join('');
+}
+$('#themes').addEventListener('click', e => {
+  const b = e.target.closest('[data-theme]');
+  if (!b) return;
+  const r = db.reglages;
+  r.theme = b.dataset.theme;
+  $('[name="r.couleur"]').value = r.couleur = THEMES[r.theme].c; // chaque thème part de sa couleur, modifiable ensuite
+  sauver(); renderThemes(); rendu();
+});
+$('#cQr').onchange = e => { db.reglages.qr = e.target.checked; sauver(); rendu(); };
+
+// QR de paiement européen (norme EPC) : l'app bancaire du client pré-remplit le virement.
+function qrPaiement(f, t) {
+  const r = db.reglages, iban = (r.iban || '').replace(/\s/g, '').toUpperCase();
+  if (!r.qr || !window.qrcode || !iban || !String(r.nom).trim() || t.ttc <= 0) return '';
+  const q = qrcode(0, 'M');
+  q.addData(['BCD', '002', '1', 'SCT', (r.bic || '').replace(/\s/g, '').toUpperCase(), String(r.nom).trim().slice(0, 70), iban,
+    'EUR' + (t.ttc / 100).toFixed(2), '', '', `Facture ${f.numero}`.slice(0, 140)].join('\n'), 'Byte');
+  q.make();
+  return `<div class="qr"><img src="${q.createDataURL(6, 0)}" alt="QR de paiement">Scannez pour payer</div>`;
 }
 
 // L'aperçu A4 (794 px) est réduit pour tenir dans la largeur disponible.
@@ -577,6 +689,7 @@ $('#bPdf').onclick = async () => {
     if (pdfPret) { const file = pdfPret; pdfPret = null; return await partager(file); }
     if (!window.html2pdf) return alert('Création du PDF impossible (pas de connexion internet ?).\nUtilise « Imprimer » puis « Enregistrer en PDF ».');
     b.disabled = true; b.textContent = '⏳ PDF…';
+    await document.fonts.ready; // polices du thème (calligraphie…) chargées avant la capture
     const f = cur();
     const blob = await html2pdf().set({
       margin: 0,
@@ -920,6 +1033,8 @@ function demarrer() {
     p.km ??= r.km; p.demi ??= asso ? r.demi : ''; p.journee ??= asso ? r.journee : '';
   });
   renderEquipe();
+  renderThemes();
+  $('#cQr').checked = db.reglages.qr !== false;
   majLogo();
   logoDuProfil();
   if (cur()) ouvrir(db.courante);
