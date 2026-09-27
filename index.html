@@ -187,6 +187,7 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
         <button data-add="article">＋ Article</button>
         <button data-add="km">＋ Déplacement</button>
         <button data-add="heure">＋ Main-d'œuvre</button>
+        <button data-add="demi" id="bDemi">＋ Demi-journée</button>
         <span class="contents" id="eqBtns"></span>
         <button id="bTicket">📷 Ticket</button>
         <input type="file" id="fTicket" accept="image/*" hidden>
@@ -237,6 +238,7 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
       <label>BIC<input name="r.bic"></label>
       <label>Tarif déplacement (€/km)<input name="r.km" inputmode="decimal"></label>
       <label>Taux horaire (€/h)<input name="r.heure" inputmode="decimal"></label>
+      <label>Forfait demi-journée (€)<input name="r.demi" inputmode="decimal"></label>
       <label>Délai de paiement (jours)<input name="r.delai" inputmode="numeric"></label>
       <label class="full">Notes par défaut (nouvelles factures)<textarea name="r.notes" rows="2"></textarea></label>
     </div>
@@ -268,7 +270,7 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
 <script>
 const $ = s => document.querySelector(s);
 const KEY = 'factures-v1';
-const DEFAUT = {nom:'', adresse:'', tel:'', email:'', entreprise:'', iban:'', bic:'', km:'0,45', heure:'45', delai:'30', notes:'', marge:'20', ticketTvac:false, ticketCat:''};
+const DEFAUT = {nom:'', adresse:'', tel:'', email:'', entreprise:'', iban:'', bic:'', km:'0,45', heure:'45', demi:'100', delai:'30', notes:'', marge:'20', ticketTvac:false, ticketCat:''};
 // Catalogue de départ : « poste|unité » séparés par « ; ». Les prix se remplissent dans l'app.
 const catalogueDefaut = () => [
   ['⚡', 'Électricité', "Saignée|m; Rebouchage de saignée|m; Pose de gaine|m; Tirage de câble|m; Pose de boîte d'encastrement|pce; Ajout de prise|pce; Ajout d'interrupteur|pce; Point lumineux|pce; Pose de luminaire|pce; Remplacement prise ou interrupteur|pce; Ajout d'un circuit|pce; Disjoncteur ou différentiel au tableau|pce; Remplacement du tableau électrique|forfait; Mise à la terre|forfait; Liaisons équipotentielles|forfait; Recherche de panne|h; Schéma unifilaire et plan de position|forfait; Préparation au contrôle RGIE|forfait"],
@@ -376,6 +378,8 @@ function renderLignes() {
       <label class="c">Métier<select name="l.cat.${i}">${optionsCat(l.cat)}</select></label>
       <label class="r">Remise<input name="l.remise.${i}" placeholder="10 % ou 5" inputmode="decimal" value="${esc(l.remise)}"></label>
     </div>`).join('');
+  const demi = f.lignes.find(l => l.forfait === 'demi');
+  $('#bDemi').textContent = demi ? `＋ Demi-journée (${nbFr(num(demi.qte))})` : '＋ Demi-journée';
 }
 const optionsCat = sel => '<option value="">Divers</option>' + db.catalogue.map(c =>
   `<option value="${esc(c.nom)}" ${c.nom === sel ? 'selected' : ''}>${esc(c.icone)} ${esc(c.nom)}</option>`).join('');
@@ -412,7 +416,15 @@ document.addEventListener('click', e => {
   const b = e.target.closest('button');
   if (!b) return;
   const f = cur();
-  if (b.dataset.add) {
+  if (b.dataset.add === 'demi') { // chaque toucher = une demi-journée de plus sur la même ligne
+    const l = f.lignes.find(l => l.forfait === 'demi');
+    if (l) l.qte = nb(num(l.qte) + 1);
+    else {
+      f.lignes = f.lignes.filter(l => l.desc || num(l.pu)); // retire la ligne vide de départ
+      f.lignes.push({desc: 'Forfait demi-journée', qte: '1', unite: '', pu: db.reglages.demi, cat: '', remise: '', forfait: 'demi'});
+    }
+    renderLignes(); modifie();
+  } else if (b.dataset.add) {
     const r = db.reglages;
     f.lignes.push({
       article: {desc: '', qte: '1', unite: '', pu: ''},
