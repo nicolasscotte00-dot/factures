@@ -187,7 +187,8 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
         <button data-add="article">＋ Article</button>
         <button data-add="km">＋ Déplacement</button>
         <button data-add="heure">＋ Main-d'œuvre</button>
-        <button data-add="demi" id="bDemi">＋ Demi-journée</button>
+        <button data-forfait="demi" data-label="＋ Demi-journée">＋ Demi-journée</button>
+        <button data-forfait="journee" data-label="＋ Journée complète">＋ Journée complète</button>
         <span class="contents" id="eqBtns"></span>
         <button id="bTicket">📷 Ticket</button>
         <input type="file" id="fTicket" accept="image/*" hidden>
@@ -239,6 +240,7 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
       <label>Tarif déplacement (€/km)<input name="r.km" inputmode="decimal"></label>
       <label>Taux horaire (€/h)<input name="r.heure" inputmode="decimal"></label>
       <label>Forfait demi-journée (€)<input name="r.demi" inputmode="decimal"></label>
+      <label>Forfait journée complète (€)<input name="r.journee" inputmode="decimal"></label>
       <label>Délai de paiement (jours)<input name="r.delai" inputmode="numeric"></label>
       <label class="full">Notes par défaut (nouvelles factures)<textarea name="r.notes" rows="2"></textarea></label>
     </div>
@@ -251,7 +253,7 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
       <input type="file" id="fLogo" accept="image/*" hidden>
     </div>
     <h3>Équipe</h3>
-    <p class="note">Chaque personne a son taux horaire et son tarif au km facturés au client. Elle a ensuite ses boutons « ＋ » (heures et déplacement) dans les lignes de la facture.</p>
+    <p class="note">Chaque personne a ses tarifs facturés au client (heure, km, forfaits). Elle a ensuite ses boutons « ＋ » dans les lignes de la facture. Un forfait sans prix n'a pas de bouton.</p>
     <div id="equipe"></div>
     <div class="add">
       <button data-eact="associe">＋ Ajouter un associé</button>
@@ -270,7 +272,7 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
 <script>
 const $ = s => document.querySelector(s);
 const KEY = 'factures-v1';
-const DEFAUT = {nom:'', adresse:'', tel:'', email:'', entreprise:'', iban:'', bic:'', km:'0,45', heure:'45', demi:'100', delai:'30', notes:'', marge:'20', ticketTvac:false, ticketCat:''};
+const DEFAUT = {nom:'', adresse:'', tel:'', email:'', entreprise:'', iban:'', bic:'', km:'0,45', heure:'45', demi:'100', journee:'200', delai:'30', notes:'', marge:'20', ticketTvac:false, ticketCat:''};
 // Catalogue de départ : « poste|unité » séparés par « ; ». Les prix se remplissent dans l'app.
 const catalogueDefaut = () => [
   ['⚡', 'Électricité', "Saignée|m; Rebouchage de saignée|m; Pose de gaine|m; Tirage de câble|m; Pose de boîte d'encastrement|pce; Ajout de prise|pce; Ajout d'interrupteur|pce; Point lumineux|pce; Pose de luminaire|pce; Remplacement prise ou interrupteur|pce; Ajout d'un circuit|pce; Disjoncteur ou différentiel au tableau|pce; Remplacement du tableau électrique|forfait; Mise à la terre|forfait; Liaisons équipotentielles|forfait; Recherche de panne|h; Schéma unifilaire et plan de position|forfait; Préparation au contrôle RGIE|forfait"],
@@ -378,9 +380,14 @@ function renderLignes() {
       <label class="c">Métier<select name="l.cat.${i}">${optionsCat(l.cat)}</select></label>
       <label class="r">Remise<input name="l.remise.${i}" placeholder="10 % ou 5" inputmode="decimal" value="${esc(l.remise)}"></label>
     </div>`).join('');
-  const demi = f.lignes.find(l => l.forfait === 'demi');
-  $('#bDemi').textContent = demi ? `＋ Demi-journée (${nbFr(num(demi.qte))})` : '＋ Demi-journée';
+  majCompteurs();
 }
+const FORFAIT = {demi: 'demi-journée', journee: 'journée complète'};
+// Boutons de forfait : affichent combien de (demi-)journées sont déjà sur la facture.
+const majCompteurs = () => cur() && document.querySelectorAll('[data-forfait]').forEach(b => {
+  const l = cur().lignes.find(x => x.forfait === b.dataset.forfait);
+  b.textContent = b.dataset.label + (l ? ` (${nbFr(num(l.qte))})` : '');
+});
 const optionsCat = sel => '<option value="">Divers</option>' + db.catalogue.map(c =>
   `<option value="${esc(c.nom)}" ${c.nom === sel ? 'selected' : ''}>${esc(c.icone)} ${esc(c.nom)}</option>`).join('');
 
@@ -416,12 +423,14 @@ document.addEventListener('click', e => {
   const b = e.target.closest('button');
   if (!b) return;
   const f = cur();
-  if (b.dataset.add === 'demi') { // chaque toucher = une demi-journée de plus sur la même ligne
-    const l = f.lignes.find(l => l.forfait === 'demi');
+  if (b.dataset.forfait) { // chaque toucher = une (demi-)journée de plus sur la même ligne
+    const cle = b.dataset.forfait, [type, id] = cle.split(':'), p = id && db.equipe.find(x => x.id === id);
+    const l = f.lignes.find(l => l.forfait === cle);
     if (l) l.qte = nb(num(l.qte) + 1);
     else {
       f.lignes = f.lignes.filter(l => l.desc || num(l.pu)); // retire la ligne vide de départ
-      f.lignes.push({desc: 'Forfait demi-journée', qte: '1', unite: '', pu: db.reglages.demi, cat: '', remise: '', forfait: 'demi'});
+      f.lignes.push({desc: `Forfait ${FORFAIT[type]}${p ? ` – ${p.nom.trim()} (${STATUT[p.statut]})` : ''}`,
+        qte: '1', unite: '', pu: (p || db.reglages)[type], cat: '', remise: '', forfait: cle});
     }
     renderLignes(); modifie();
   } else if (b.dataset.add) {
@@ -813,12 +822,21 @@ function renderEquipe() {
       </select></label>
       <label>€/h facturé<input data-ei="${i}" data-ek="taux" inputmode="decimal" value="${esc(p.taux)}" placeholder="à remplir"></label>
       <label>€/km facturé<input data-ei="${i}" data-ek="km" inputmode="decimal" value="${esc(p.km)}"></label>
+      <label>½ journée €<input data-ei="${i}" data-ek="demi" inputmode="decimal" value="${esc(p.demi)}" placeholder="aucun"></label>
+      <label>Journée €<input data-ei="${i}" data-ek="journee" inputmode="decimal" value="${esc(p.journee)}" placeholder="aucun"></label>
     </div>`).join('');
   renderEqBtns();
 }
-const renderEqBtns = () => $('#eqBtns').innerHTML = db.equipe.filter(p => p.nom.trim())
-  .map(p => `<button data-eq="${p.id}">＋ ${esc(p.nom.trim())} (${STATUT[p.statut]})</button>
-    <button data-eqkm="${p.id}">＋ Déplacement ${esc(p.nom.trim())}</button>`).join('');
+// Par personne : heures et déplacement toujours ; forfaits (demi-)journée seulement si un prix est fixé.
+function renderEqBtns() {
+  $('#eqBtns').innerHTML = db.equipe.filter(p => p.nom.trim()).map(p => {
+    const n = esc(p.nom.trim()), forfait = t => num(p[t]) ? `
+      <button data-forfait="${t}:${p.id}" data-label="＋ ${FORFAIT[t][0].toUpperCase() + FORFAIT[t].slice(1)} ${n}"></button>` : '';
+    return `<button data-eq="${p.id}">＋ ${n} (${STATUT[p.statut]})</button>
+      <button data-eqkm="${p.id}">＋ Déplacement ${n}</button>${forfait('demi')}${forfait('journee')}`;
+  }).join('');
+  majCompteurs();
+}
 
 $('#dlgReglages').addEventListener('click', e => {
   const b = e.target.closest('[data-eact]');
@@ -828,7 +846,10 @@ $('#dlgReglages').addEventListener('click', e => {
     const p = db.equipe[b.dataset.ei];
     if (!confirm(`Retirer ${p.nom.trim() || 'cette personne'} de l'équipe ?`)) return;
     db.equipe.splice(+b.dataset.ei, 1);
-  } else db.equipe.push({id: Date.now().toString(36), nom: '', statut: a, taux: a === 'associe' ? db.reglages.heure : '', km: db.reglages.km});
+  } else {
+    const r = db.reglages, asso = a === 'associe';
+    db.equipe.push({id: Date.now().toString(36), nom: '', statut: a, taux: asso ? r.heure : '', km: r.km, demi: asso ? r.demi : '', journee: asso ? r.journee : ''});
+  }
   sauver(); renderEquipe();
   if (a !== 'del') [...document.querySelectorAll('#equipe [data-ek="nom"]')].at(-1).focus();
 });
@@ -894,7 +915,10 @@ function demarrer() {
   db.reglages = {...DEFAUT, ...db.reglages};
   db.catalogue ??= catalogueDefaut();
   db.equipe ??= [];
-  db.equipe.forEach(p => p.km ??= db.reglages.km); // personnes créées avant le tarif au km
+  db.equipe.forEach(p => { // personnes créées avant ces tarifs : ceux de Scott pour un associé
+    const asso = p.statut === 'associe', r = db.reglages;
+    p.km ??= r.km; p.demi ??= asso ? r.demi : ''; p.journee ??= asso ? r.journee : '';
+  });
   renderEquipe();
   majLogo();
   logoDuProfil();
