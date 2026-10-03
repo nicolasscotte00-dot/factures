@@ -28,6 +28,8 @@ if (PROFIL) {
 <style>
 :root{--bg:#f3f5f8;--card:#fff;--ink:#1d2433;--muted:#6b7385;--line:#dde2ea;--accent:#1f5fbf;--brand:#1f3a5f;--danger:#c0392b}
 *{box-sizing:border-box}
+[hidden]{display:none!important} /* sinon « input, label {display:block} » ré-affiche les éléments cachés */
+input[type=file][hidden]{display:block!important;position:fixed;left:-9999px;width:1px;height:1px;opacity:0} /* invisible mais présent : iOS l'ouvre au toucher du bouton */
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:calc(84px + env(safe-area-inset-bottom))}
 button{font:inherit;font-size:15px;border:0;border-radius:10px;padding:10px 12px;cursor:pointer;background:#e6ebf3;color:var(--ink)}
@@ -389,6 +391,13 @@ body[data-doc=facture] .seulDevis,body[data-doc=devis] .seulFacture{display:none
       <button id="bExport">⬇ Exporter</button>
       <button onclick="document.getElementById('fImport').click()">⬆ Importer</button>
       <input type="file" id="fImport" accept="application/json,.json" hidden>
+    </div>
+    <h3>Catalogue (postes et prix)</h3>
+    <p class="note">Pour partager tes postes et tes prix avec quelqu'un (Gerlando…), sans tes factures ni tes coordonnées. À l'import, rien n'est effacé : les prix sont mis à jour et les nouveaux postes ajoutés.</p>
+    <div class="add">
+      <button id="bExportCat">📤 Partager mon catalogue</button>
+      <button onclick="document.getElementById('fImportCat').click()">⬆ Importer un catalogue</button>
+      <input type="file" id="fImportCat" accept="application/json,.json,text/plain" hidden>
     </div>
   </div>
 </dialog>
@@ -1202,9 +1211,62 @@ $('#fImport').onchange = async e => {
   if (!file) return;
   try {
     const d = JSON.parse(await file.text());
-    if (!Array.isArray(d.factures)) throw Error('ce fichier n\'est pas une sauvegarde de factures');
+    if (!Array.isArray(d.factures)) throw Error(d.format === 'catalogue-factures' ? 'c\'est un catalogue : utilise « Importer un catalogue »' : 'ce fichier n\'est pas une sauvegarde de factures');
     if (!confirm(`Remplacer toutes les données de cet appareil par cette sauvegarde (${d.factures.length} factures) ?`)) return;
     db = d; demarrer(); $('#dlgReglages').close();
+  } catch (err) { alert('Import impossible : ' + err.message); }
+};
+
+// ---------- Catalogue seul : partage et fusion ----------
+// Fusionne src dans dest (listes de métiers) sans rien effacer : postes communs mis à jour
+// (un prix vide n'écrase pas), nouveaux postes et métiers ajoutés. Comparaison des noms sans casse.
+function fusionnerCatalogue(dest, src) {
+  const memeNom = (a, b) => String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+  const n = {maj: 0, ajout: 0, metiers: 0};
+  for (const m of src) {
+    if (!m || typeof m.nom !== 'string' || !m.nom.trim() || !Array.isArray(m.postes)) continue;
+    let ici = dest.find(x => memeNom(x.nom, m.nom));
+    if (!ici) { dest.push(ici = {icone: String(m.icone || '🔧'), nom: m.nom.trim(), postes: []}); n.metiers++; }
+    for (const p of m.postes) {
+      if (!p || typeof p.nom !== 'string' || !p.nom.trim()) continue;
+      const q = {nom: p.nom.trim(), unite: String(p.unite ?? ''), mo: String(p.mo ?? ''), mat: String(p.mat ?? '')};
+      const ex = ici.postes.find(x => memeNom(x.nom, q.nom));
+      if (!ex) { ici.postes.push(q); n.ajout++; continue; }
+      let change = false;
+      for (const k of ['unite', 'mo', 'mat']) if (q[k].trim() && q[k] !== ex[k]) { ex[k] = q[k]; change = true; }
+      if (change) n.maj++;
+    }
+  }
+  return n;
+}
+// Auto-contrôle de la fusion (message dans la console si elle est fausse)
+(() => { const dest = [{icone: '⚡', nom: 'Électricité', postes: [{nom: 'Saignée', unite: 'm', mo: '10', mat: ''}, {nom: 'Poste perso', unite: 'h', mo: '50', mat: ''}]}];
+  const n = fusionnerCatalogue(dest, [{icone: '⚡', nom: 'électricité', postes: [{nom: 'saignée', unite: 'm', mo: '12', mat: '3,5'}, {nom: 'Ajout de prise', unite: 'pce', mo: '45', mat: ''}]}, {icone: '🌳', nom: 'Jardin', postes: [{nom: 'Tonte', unite: 'm²', mo: '0,5', mat: ''}]}]);
+  const s = dest[0].postes[0];
+  console.assert(n.maj === 1 && n.ajout === 2 && n.metiers === 1 && s.mo === '12' && s.mat === '3,5' && dest[0].postes.length === 3 && dest[0].postes[1].mo === '50',
+    'Fusion de catalogue fausse', n, dest); })();
+
+$('#bExportCat').onclick = () => {
+  const r = db.reglages, nom = (r.nom || 'catalogue').trim().replace(/[^\p{L}\p{N}]+/gu, '-').toLowerCase();
+  const file = new File([JSON.stringify({format: 'catalogue-factures', version: 1, de: r.nom, date: today(), catalogue: db.catalogue}, null, 1)],
+    `catalogue-${nom}-${today()}.json`, {type: 'application/json'});
+  // sur téléphone : menu Partager (WhatsApp, mail…) ; sinon (ou si refusé) : téléchargement
+  if (tactile && navigator.canShare?.({files: [file]})) navigator.share({files: [file]}).catch(e => { if (e.name !== 'AbortError') telecharger(file); });
+  else telecharger(file);
+};
+
+$('#fImportCat').onchange = async e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  try {
+    const d = JSON.parse(await file.text()); // accepte aussi une sauvegarde complète : seul son catalogue est repris
+    if (!Array.isArray(d.catalogue)) throw Error('ce fichier ne contient pas de catalogue');
+    const postes = d.catalogue.reduce((a, m) => a + (m.postes?.length || 0), 0);
+    if (!confirm(`Importer le catalogue${d.de ? ` de ${d.de}` : ''} (${d.catalogue.length} métiers, ${postes} postes) ?\n\nLes prix des postes existants sont mis à jour, les nouveaux postes ajoutés. Rien n'est effacé, tes factures ne sont pas touchées.`)) return;
+    const n = fusionnerCatalogue(db.catalogue, d.catalogue);
+    sauver(); renderLignes(); rendu();
+    alert(`Catalogue importé : ${n.maj} poste(s) mis à jour, ${n.ajout} ajouté(s), ${n.metiers} nouveau(x) métier(s).`);
   } catch (err) { alert('Import impossible : ' + err.message); }
 };
 
