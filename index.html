@@ -130,8 +130,8 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
 .inv .notes{margin-top:16px}
 .inv .foot{margin-top:auto;padding-top:20px;border-top:1px solid #dde2ea;font-size:11px;color:#777;text-align:center}
 /* Thème Luxe doré : noir et or, calligraphie, filets et en-têtes en dorure */
-.inv.luxe{--or:linear-gradient(90deg,#7a5c14,#c9a23a 22%,#f6e08f 50%,#c9a23a 78%,#7a5c14);font:14px/1.35 "Cormorant Garamond",Georgia,serif;color:#262626;padding:52px 64px}
-.inv.luxe .cadre{display:block;position:absolute;inset:20px;border:1.5px solid var(--c)}
+.inv.luxe{--or:linear-gradient(90deg,#7a5c14,#c9a23a 22%,#f6e08f 50%,#c9a23a 78%,#7a5c14);font:14px/1.3 "Cormorant Garamond",Georgia,serif;color:#262626;padding:44px 64px}
+.inv.luxe .cadre{display:block;position:absolute;inset:16px;border:1.5px solid var(--c)}
 .inv.luxe .cadre::after{content:"";position:absolute;inset:5px;border:.6px solid var(--c)}
 .inv.luxe .filet{display:block;height:2px;background:var(--or);margin:16px 0 2px}
 .inv.luxe .titre,.inv.luxe .em .nom,.inv.luxe .tot .big span:first-child{font-family:"Great Vibes",cursive;font-weight:400;letter-spacing:0;text-transform:none}
@@ -148,7 +148,7 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
 .inv.luxe .tot .big span:last-child{font-size:19px}
 .inv.luxe .foot{border-top:none;color:#8a7440;letter-spacing:.08em;margin-top:0}
 /* Thème Formel : noir et blanc, sobre, typographie classique */
-.inv.formel{font:13.5px/1.4 "EB Garamond",Georgia,serif;color:#111}
+.inv.formel{font:13.5px/1.35 "EB Garamond",Georgia,serif;color:#111}
 .inv.formel .titre{font-weight:600;font-size:26px;letter-spacing:.3em;border-top:2px solid #111;border-bottom:1px solid #111;padding:6px 0 4px}
 .inv.formel .em .nom{font-size:20px;font-weight:600}
 .inv.formel .cl{border:1px solid #111;border-radius:0}
@@ -170,6 +170,25 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
 .themes button{display:flex;flex-direction:column;align-items:flex-start;gap:6px;background:#f1f4f8;border:2px solid transparent;text-align:left}
 .themes button.on{border-color:var(--accent)}
 .themes i{display:block;width:100%;height:18px;border-radius:5px}
+/* Devis */
+body[data-doc=facture] .seulDevis,body[data-doc=devis] .seulFacture{display:none}
+.badge{display:inline-block;font-size:11px;font-weight:600;padding:1px 8px;border-radius:9px;margin-left:6px;vertical-align:1px;text-transform:none;letter-spacing:0}
+.badge.attente{background:#fff3cd;color:#7a5b00}.badge.accepte{background:#dcfce7;color:#166534}
+.badge.refuse{background:#fee2e2;color:#991b1b}.badge.expire{background:#e5e7eb;color:#4b5563}
+.htabs{display:flex;gap:4px;background:#e3e8ef;border-radius:10px;padding:4px;margin-bottom:12px}
+.htabs button{flex:1;background:none;padding:8px}.htabs button.on{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.choix{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.choix button{padding:22px 10px;font-size:17px}
+#sigPad{display:block;width:100%;height:210px;border:2px dashed #b8c2d0;border-radius:12px;background:#fff;touch-action:none}
+.inv .bas{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-top:10px}
+.inv .bas .pay{margin-top:0}
+.inv .accord{flex:none;width:270px;border:1px solid #dde2ea;border-radius:6px;padding:7px 11px;font-size:11.5px;line-height:1.35}
+.inv .accord b{color:var(--c)}
+.inv .accord .sigzone{height:50px;border-bottom:1px dotted #999;margin:2px 0}
+.inv .accord .sigzone img{height:48px;max-width:100%;object-fit:contain}
+.inv .accord small{color:#888;font-size:10px}
+.inv .cond{margin-top:8px;font-size:10px;line-height:1.35;color:#555}
+.inv .ref{margin-top:2px;font-style:italic}
 .pre{white-space:pre-line}
 @media print{
   @page{size:A4;margin:0}
@@ -182,12 +201,12 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
 }
 </style>
 </head>
-<body data-tab="saisie">
+<body data-tab="saisie" data-doc="facture">
 
 <div class="haut">
   <header>
     <h1 id="titre">Factures</h1>
-    <button id="bNouvelle">＋ Nouvelle</button>
+    <button id="bNouvelle">＋ Nouveau</button>
     <button id="bHist">Historique</button>
     <button id="bReglages" aria-label="Réglages">⚙︎</button>
   </header>
@@ -202,7 +221,7 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
     <button class="hint" id="hint" hidden>👋 Commence par tes coordonnées : <u>ouvrir les réglages</u></button>
 
     <div class="card">
-      <h2>Facture</h2>
+      <h2 id="titreDoc">Facture</h2>
       <div class="grid">
         <label>N° de facture<input name="f.numero" autocomplete="off"></label>
         <label>TVA
@@ -215,7 +234,28 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
           </select>
         </label>
         <label>Date<input type="date" name="f.date"></label>
-        <label>Échéance<input type="date" name="f.echeance"></label>
+        <label><span id="lblEch">Échéance</span><input type="date" name="f.echeance"></label>
+        <label class="seulFacture" id="champVerse">Acompte déjà versé (€)<input name="f.acompteVerse" inputmode="decimal" placeholder="0"></label>
+      </div>
+    </div>
+
+    <div class="card seulDevis">
+      <h2>Accord du client</h2>
+      <div class="grid">
+        <label>Acompte à la commande (%)<input name="f.acompte" inputmode="decimal" placeholder="0 = pas d'acompte"></label>
+        <label>Statut
+          <select name="f.statut">
+            <option value="attente">En attente</option>
+            <option value="accepte">Accepté</option>
+            <option value="refuse">Refusé</option>
+          </select>
+        </label>
+      </div>
+      <p class="note" id="sigEtat"></p>
+      <div class="add">
+        <button id="bSigner">✍️ Faire signer le client</button>
+        <button id="bSigRetirer" class="danger">Retirer la signature</button>
+        <button id="bTransformer" class="primary">✓ Transformer en facture</button>
       </div>
     </div>
 
@@ -262,6 +302,26 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
   <button id="bPdf" class="primary">📤 PDF</button>
 </footer>
 
+<dialog id="dlgNouveau">
+  <div class="dlg-h"><h2>Nouveau document</h2><button autofocus onclick="this.closest('dialog').close()">Fermer</button></div>
+  <div class="dlg-b choix">
+    <button class="primary" data-nouveau="facture">🧾 Facture</button>
+    <button data-nouveau="devis">📝 Devis</button>
+  </div>
+</dialog>
+
+<dialog id="dlgSign">
+  <div class="dlg-h"><h2>Bon pour accord</h2><button autofocus onclick="this.closest('dialog').close()">Fermer</button></div>
+  <div class="dlg-b">
+    <p class="note">Le client signe ci-dessous avec le doigt. La signature et la date apparaîtront sur le devis.</p>
+    <canvas id="sigPad"></canvas>
+    <div class="add">
+      <button id="sigEffacer">Effacer</button>
+      <button class="primary" id="sigOk">Valider la signature</button>
+    </div>
+  </div>
+</dialog>
+
 <dialog id="dlgHist">
   <div class="dlg-h"><h2>Historique</h2><button autofocus onclick="this.closest('dialog').close()">Fermer</button></div>
   <div class="dlg-b" id="hist"></div>
@@ -293,6 +353,9 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
       <label>Forfait demi-journée (€)<input name="r.demi" inputmode="decimal"></label>
       <label>Forfait journée complète (€)<input name="r.journee" inputmode="decimal"></label>
       <label>Délai de paiement (jours)<input name="r.delai" inputmode="numeric"></label>
+      <label>Validité des devis (jours)<input name="r.validiteDevis" inputmode="numeric"></label>
+      <label>Acompte des devis (%)<input name="r.acompteDevis" inputmode="decimal"></label>
+      <label class="full">Conditions des devis<textarea name="r.conditionsDevis" rows="3"></textarea></label>
       <label class="full">Notes par défaut (nouvelles factures)<textarea name="r.notes" rows="2"></textarea></label>
     </div>
     <h3>Logo</h3>
@@ -331,7 +394,9 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
 const $ = s => document.querySelector(s);
 const KEY = 'factures-v1';
 const DEFAUT = {nom:'', adresse:'', tel:'', email:'', entreprise:'', iban:'', bic:'', km:'0,45', heure:'45', demi:'100', journee:'200', delai:'30', notes:'', marge:'20', ticketTvac:false, ticketCat:'',
-  theme:'classique', couleur:'#1f3a5f', couleurTotal:'#c0392b', qr:true};
+  theme:'classique', couleur:'#1f3a5f', couleurTotal:'#c0392b', qr:true,
+  validiteDevis:'30', acompteDevis:'30',
+  conditionsDevis:"Devis valable jusqu'à la date indiquée. Prix établis sur base de l'état apparent du chantier lors de la visite ; tout travail supplémentaire fera l'objet d'un accord préalable. Le solde est payable à réception de la facture."};
 // Thèmes : c = couleur de la facture, app = barre du haut, accent = boutons principaux de l'app.
 const THEMES = {
   classique: {nom: 'Classique', c: '#1f3a5f', app: '#1f3a5f', accent: '#1f5fbf'},
@@ -380,7 +445,18 @@ function calc(f) {
 (() => { const r = calc({tva: '21', lignes: [{qte: '3', pu: '19,99'}, {qte: '12', pu: '0.45'}]});
   console.assert(r.ht === 6537 && r.tva === 1373 && r.ttc === 7910, 'Calcul de facture faux', r);
   const s = calc({tva: '21', ristourne: '10 %', lignes: [{qte: '3', pu: '19,99'}, {qte: '12', pu: '0.45', remise: '0,40'}]});
-  console.assert(s.brut === 6497 && s.ristourne === 650 && s.ht === 5847 && s.tva === 1228 && s.ttc === 7075, 'Calcul des remises faux', s); })();
+  console.assert(s.brut === 6497 && s.ristourne === 650 && s.ht === 5847 && s.tva === 1228 && s.ttc === 7075, 'Calcul des remises faux', s);
+  const d = montants({type: 'devis', tva: '21', acompte: '30', lignes: [{qte: '3', pu: '19,99'}, {qte: '12', pu: '0.45'}]});
+  const v = montants({tva: '21', acompteVerse: '23,73', lignes: [{qte: '3', pu: '19,99'}, {qte: '12', pu: '0.45'}]});
+  console.assert(d.acompte === 2373 && d.aPayer === 2373 && v.verse === 2373 && v.aPayer === 5537, 'Calcul acompte faux', d, v); })();
+
+// Ce qu'il y a à payer : sur un devis, l'acompte demandé ; sur une facture, le total moins l'acompte déjà versé.
+function montants(f) {
+  const t = calc(f), devis = f.type === 'devis';
+  const acompte = devis ? Math.round(t.ttc * num(f.acompte) / 100) : 0;
+  const verse = devis ? 0 : Math.min(t.ttc, Math.round(num(f.acompteVerse) * 100));
+  return {t, acompte, verse, aPayer: devis ? acompte : t.ttc - verse};
+}
 
 // ---------- Données (localStorage) ----------
 let db, alerteSauvegarde = false;
@@ -394,26 +470,37 @@ function sauver() {
 const cur = () => db.factures.find(f => f.id === db.courante);
 const estVide = f => !f.client.nom && f.lignes.every(l => !l.desc && !num(l.pu));
 
-function prochainNumero() {
-  const y = new Date().getFullYear(), re = new RegExp('^' + y + '-(\\d+)$');
+// Deux suites séparées : factures « 2026-001 », devis « D-2026-001 » (pas de trou dans les factures).
+function prochainNumero(type = 'facture') {
+  const y = new Date().getFullYear(), pre = type === 'devis' ? 'D-' : '', re = new RegExp('^' + pre + y + '-(\\d+)$');
   const n = Math.max(0, ...db.factures.map(f => +(f.numero.match(re)?.[1] || 0))) + 1;
-  return y + '-' + String(n).padStart(3, '0');
+  return pre + y + '-' + String(n).padStart(3, '0');
 }
+const echeanceDe = (date, type) => plusJours(date, num(type === 'devis' ? db.reglages.validiteDevis : db.reglages.delai));
 
-function creer(base) {
-  const date = today();
+function creer(base, type = 'facture') {
+  const date = today(), devis = type === 'devis';
   const f = {
-    id: Date.now().toString(36), numero: prochainNumero(), date,
-    echeance: plusJours(date, num(db.reglages.delai)),
+    id: Date.now().toString(36), type, numero: prochainNumero(type), date, echeance: echeanceDe(date, type),
     tva: base?.tva ?? db.factures.at(-1)?.tva ?? '21',
     client: base ? {...base.client} : {nom: '', adresse: '', email: '', tva: ''},
     lignes: base ? base.lignes.map(l => ({...l})) : [{desc: '', qte: '1', unite: '', pu: ''}],
     ristourne: base?.ristourne ?? '',
-    notes: base ? base.notes : db.reglages.notes
+    notes: base ? base.notes : db.reglages.notes,
+    ...(devis ? {statut: 'attente', acompte: base?.acompte ?? db.reglages.acompteDevis} : {})
   };
   db.factures.push(f);
   ouvrir(f.id);
 }
+
+// Statut affiché d'un devis : « expiré » si toujours en attente après sa date de validité.
+const STATUTS = {attente: 'En attente', accepte: 'Accepté', refuse: 'Refusé', expire: 'Expiré'};
+function statutDe(f) {
+  if (f.type !== 'devis') return '';
+  const s = f.statut || 'attente';
+  return s === 'attente' && f.echeance && f.echeance < today() ? 'expire' : s;
+}
+const badge = f => f.type === 'devis' ? `<span class="badge ${statutDe(f)}">${STATUTS[statutDe(f)]}</span>` : '';
 
 function ouvrir(id) {
   db.courante = id;
@@ -431,6 +518,19 @@ function remplir() {
   const noms = [...new Set(db.factures.map(x => x.client.nom.trim()).filter(Boolean))];
   $('#clients').innerHTML = noms.map(n => `<option value="${esc(n)}">`).join('');
   $('#hint').hidden = !!db.reglages.nom;
+  majDocUi();
+}
+
+// Ce qui change selon facture / devis dans la saisie.
+function majDocUi() {
+  const f = cur(), devis = f.type === 'devis';
+  document.body.dataset.doc = devis ? 'devis' : 'facture';
+  $('#titreDoc').innerHTML = (devis ? 'Devis' : 'Facture') + badge(f);
+  $('#lblEch').textContent = devis ? 'Valable jusqu\'au' : 'Échéance';
+  $('#champVerse').hidden = !devis && !f.devisRef && !num(f.acompteVerse);
+  $('#sigEtat').textContent = f.sig ? `✓ Signé par le client le ${dt(f.sigDate)}.` : 'Pas encore signé : le client peut signer sur cet écran, ou à la main sur le devis imprimé.';
+  $('#bSigRetirer').hidden = !f.sig;
+  $('#bTransformer').textContent = f.factureRef ? `✓ Déjà transformé (${f.factureRef}) – recommencer` : '✓ Transformer en facture';
 }
 
 function renderLignes() {
@@ -466,7 +566,8 @@ function saisie(e) {
   const el = e.target, [s, k, i] = (el.name || '').split('.'), f = cur();
   if (s === 'f') {
     f[k] = el.value;
-    if (k === 'date') $('[name="f.echeance"]').value = f.echeance = plusJours(el.value, num(db.reglages.delai));
+    if (k === 'date') $('[name="f.echeance"]').value = f.echeance = echeanceDe(el.value, f.type);
+    if (k === 'statut' || k === 'echeance') majDocUi();
   } else if (s === 'c') {
     f.client[k] = el.value;
     const connu = k === 'nom' && clientConnu(el.value);
@@ -524,8 +625,11 @@ document.addEventListener('click', e => {
     scrollTo(0, 0);
   } else if (b.dataset.open) {
     ouvrir(b.dataset.open); $('#dlgHist').close();
+  } else if (b.dataset.ht) {
+    histType = b.dataset.ht; renderHist();
   } else if (b.dataset.dup) {
-    creer(db.factures.find(x => x.id === b.dataset.dup)); $('#dlgHist').close();
+    const x = db.factures.find(x => x.id === b.dataset.dup);
+    creer(x, x.type === 'devis' ? 'devis' : 'facture'); $('#dlgHist').close();
   } else if (b.dataset.suppr) {
     const x = db.factures.find(x => x.id === b.dataset.suppr);
     if (!confirm(`Supprimer définitivement la facture ${x.numero} ?`)) return;
@@ -537,8 +641,8 @@ document.addEventListener('click', e => {
 
 // ---------- Aperçu de la facture ----------
 function rendu() {
-  const f = cur(), r = db.reglages, t = calc(f), c = f.client;
-  const franchise = f.tva === 'franchise';
+  const f = cur(), r = db.reglages, m = montants(f), t = m.t, c = f.client;
+  const franchise = f.tva === 'franchise', devis = f.type === 'devis';
   const lignes = f.lignes.map((l, i) => [l, t.lignes[i]]).filter(([l]) => l.desc || num(l.pu));
   // Groupes par métier, dans l'ordre du catalogue ; « Divers » (sans métier, ou métier supprimé) en dernier.
   const noms = db.catalogue.map(c => c.nom);
@@ -565,15 +669,16 @@ function rendu() {
         ${r.entreprise ? `N° d'entreprise : ${esc(r.entreprise)}` : ''}
       </div>
       <div class="meta">
-        <h3 class="titre">Facture</h3>
+        <h3 class="titre">${devis ? 'Devis' : 'Facture'}</h3>
         <div>N° <b>${esc(f.numero)}</b></div>
         <div>Date : ${dt(f.date)}</div>
-        ${f.echeance ? `<div>Échéance : ${dt(f.echeance)}</div>` : ''}
+        ${f.echeance ? `<div>${devis ? 'Valable jusqu\'au' : 'Échéance'} : ${dt(f.echeance)}</div>` : ''}
+        ${f.devisRef ? `<div class="ref">Selon devis n° ${esc(f.devisRef)}</div>` : ''}
       </div>
     </div>
     <div class="filet"></div>
     <div class="cl">
-      <small>Facturé à</small>
+      <small>${devis ? 'Devis pour' : 'Facturé à'}</small>
       <b>${esc(c.nom)}</b>
       <div class="pre">${esc(c.adresse)}</div>
       ${c.email ? `${esc(c.email)}<br>` : ''}${c.tva ? `TVA : ${esc(c.tva)}` : ''}
@@ -587,10 +692,23 @@ function rendu() {
       <div><span>Ristourne${String(f.ristourne).includes('%') ? ` ${remiseTxt(f.ristourne)}` : ''}</span><span>− ${fmt(t.ristourne)}</span></div>` : ''}
       ${franchise ? '' : `<div><span>Total HTVA</span><span>${fmt(t.ht)}</span></div>
       <div><span>${f.tva === 'auto' ? 'TVA (autoliquidation)' : `TVA ${t.taux} %`}</span><span>${fmt(t.tva)}</span></div>`}
-      <div class="big"><span>${franchise || f.tva === 'auto' ? 'Total à payer' : 'Total TVAC'}</span><span>${fmt(t.ttc)}</span></div>
+      <div class="big"><span>${franchise || f.tva === 'auto' ? (devis ? 'Total' : 'Total à payer') : 'Total TVAC'}</span><span>${fmt(t.ttc)}</span></div>
+      ${m.acompte ? `<div><span>Acompte à la commande (${nbFr(num(f.acompte))} %)</span><span>${fmt(m.acompte)}</span></div>` : ''}
+      ${m.verse ? `<div><span>Acompte déjà versé</span><span>− ${fmt(m.verse)}</span></div>
+      <div class="big"><span>Reste à payer</span><span>${fmt(m.aPayer)}</span></div>` : ''}
     </div>
     ${MENTIONS[f.tva] ? `<p class="mention">${MENTIONS[f.tva]}</p>` : ''}
-    ${r.iban ? `<div class="pay">${qrPaiement(f, t)}<div><b>Paiement</b><br>À verser sur le compte ${esc(r.iban)}${r.bic ? ` (BIC ${esc(r.bic)})` : ''}${f.echeance ? ` avant le ${dt(f.echeance)}` : ''}<br>Communication : facture ${esc(f.numero)}</div></div>` : ''}
+    <div class="bas">
+      ${!r.iban ? '<div></div>' : devis
+        ? (m.acompte ? `<div class="pay">${qrPaiement(m.acompte, `Acompte devis ${f.numero}`)}<div><b>Acompte à la commande</b><br>${fmt(m.acompte)} à verser à la signature sur le compte ${esc(r.iban)}${r.bic ? ` (BIC ${esc(r.bic)})` : ''}<br>Communication : acompte devis ${esc(f.numero)}</div></div>` : '<div></div>')
+        : `<div class="pay">${qrPaiement(m.aPayer, `Facture ${f.numero}`)}<div><b>Paiement</b><br>${m.verse ? `${fmt(m.aPayer)} à verser` : 'À verser'} sur le compte ${esc(r.iban)}${r.bic ? ` (BIC ${esc(r.bic)})` : ''}${f.echeance ? ` avant le ${dt(f.echeance)}` : ''}<br>Communication : facture ${esc(f.numero)}</div></div>`}
+      ${devis ? `<div class="accord"><b>Bon pour accord</b><br>
+        Nom : ${esc(c.nom) || '……………………………'}<br>
+        Date : ${f.sig ? dt(f.sigDate) : '……………………………'}
+        <div class="sigzone">${f.sig ? `<img src="${esc(f.sig)}" alt="Signature">` : ''}</div>
+        <small>Signature du client, précédée de « lu et approuvé »</small></div>` : ''}
+    </div>
+    ${devis && r.conditionsDevis ? `<div class="cond pre">${esc(r.conditionsDevis)}</div>` : ''}
     ${f.notes ? `<div class="notes pre">${esc(f.notes)}</div>` : ''}
     <div class="filet" style="margin-top:auto"></div>
     <div class="foot">${[r.nom, r.entreprise && "N° d'entreprise " + r.entreprise, r.iban].filter(Boolean).map(esc).join(' · ')}</div>`;
@@ -627,12 +745,12 @@ $('#themes').addEventListener('click', e => {
 $('#cQr').onchange = e => { db.reglages.qr = e.target.checked; sauver(); rendu(); };
 
 // QR de paiement européen (norme EPC) : l'app bancaire du client pré-remplit le virement.
-function qrPaiement(f, t) {
+function qrPaiement(cts, communication) {
   const r = db.reglages, iban = (r.iban || '').replace(/\s/g, '').toUpperCase();
-  if (!r.qr || !window.qrcode || !iban || !String(r.nom).trim() || t.ttc <= 0) return '';
+  if (!r.qr || !window.qrcode || !iban || !String(r.nom).trim() || cts <= 0) return '';
   const q = qrcode(0, 'M');
   q.addData(['BCD', '002', '1', 'SCT', (r.bic || '').replace(/\s/g, '').toUpperCase(), String(r.nom).trim().slice(0, 70), iban,
-    'EUR' + (t.ttc / 100).toFixed(2), '', '', `Facture ${f.numero}`.slice(0, 140)].join('\n'), 'Byte');
+    'EUR' + (cts / 100).toFixed(2), '', '', communication.slice(0, 140)].join('\n'), 'Byte');
   q.make();
   return `<div class="qr"><img src="${q.createDataURL(6, 0)}" alt="QR de paiement">Scannez pour payer</div>`;
 }
@@ -644,22 +762,75 @@ new ResizeObserver(([e]) => {
 }).observe($('.preview'));
 
 // ---------- Historique ----------
+let histType = 'facture';
 function renderHist() {
-  const liste = [...db.factures].sort((a, b) => b.numero.localeCompare(a.numero, 'fr', {numeric: true}));
-  $('#hist').innerHTML = liste.map(f => `
+  const devis = histType === 'devis';
+  const liste = db.factures.filter(f => (f.type === 'devis') === devis).sort((a, b) => b.numero.localeCompare(a.numero, 'fr', {numeric: true}));
+  $('#hist').innerHTML = `
+    <div class="htabs"><button data-ht="facture" class="${devis ? '' : 'on'}">🧾 Factures</button><button data-ht="devis" class="${devis ? 'on' : ''}">📝 Devis</button></div>
+    ${liste.map(f => `
     <div class="hi ${f.id === db.courante ? 'on' : ''}">
-      <button data-open="${f.id}"><b>${esc(f.numero)}</b> ${esc(f.client.nom || '(sans client)')}
-        <small>${dt(f.date)} · ${fmt(calc(f).ttc)}</small></button>
+      <button data-open="${f.id}"><b>${esc(f.numero)}</b> ${esc(f.client.nom || '(sans client)')}${badge(f)}
+        <small>${dt(f.date)} · ${fmt(calc(f).ttc)}${f.devisRef ? ` · selon ${esc(f.devisRef)}` : ''}${f.factureRef ? ` · → ${esc(f.factureRef)}` : ''}</small></button>
       <button data-dup="${f.id}" title="Dupliquer" aria-label="Dupliquer">⧉</button>
       <button data-suppr="${f.id}" title="Supprimer" aria-label="Supprimer">🗑</button>
-    </div>`).join('') || '<p class="note">Aucune facture.</p>';
+    </div>`).join('') || `<p class="note">Aucun${devis ? ' devis' : 'e facture'}.</p>`}`;
 }
-$('#bHist').onclick = () => { renderHist(); $('#dlgHist').showModal(); };
+$('#bHist').onclick = () => { histType = cur().type === 'devis' ? 'devis' : 'facture'; renderHist(); $('#dlgHist').showModal(); };
 $('#bReglages').onclick = $('#hint').onclick = () => $('#dlgReglages').showModal();
-$('#bNouvelle').onclick = () => {
-  if (!estVide(cur())) creer();
+$('#bNouvelle').onclick = () => $('#dlgNouveau').showModal();
+$('#dlgNouveau').addEventListener('click', e => {
+  const b = e.target.closest('[data-nouveau]');
+  if (!b) return;
+  const type = b.dataset.nouveau, c = cur();
+  if (!estVide(c)) creer(null, type);
+  else if ((c.type === 'devis' ? 'devis' : 'facture') !== type) { // document vide : il change simplement de nature
+    c.numero = ''; // libère son numéro avant d'en reprendre un dans la bonne suite
+    Object.assign(c, {type, numero: prochainNumero(type), echeance: echeanceDe(c.date, type)},
+      type === 'devis' ? {statut: 'attente', acompte: db.reglages.acompteDevis} : {statut: undefined, acompte: undefined});
+    ouvrir(c.id);
+  }
+  $('#dlgNouveau').close();
   $('.tabs [data-tab=saisie]').click();
   $('[name="c.nom"]').focus();
+});
+
+// ---------- Devis : signature au doigt, transformation en facture ----------
+const pad = $('#sigPad');
+let trace = false, padVide = true;
+const pt = e => { const r = pad.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+$('#bSigner').onclick = () => {
+  $('#dlgSign').showModal();
+  const r = pad.getBoundingClientRect(), k = devicePixelRatio || 1, g = pad.getContext('2d');
+  pad.width = r.width * k; pad.height = r.height * k; // net sur les écrans haute densité
+  g.scale(k, k); g.lineWidth = 2.4; g.lineCap = g.lineJoin = 'round'; g.strokeStyle = '#14213d';
+  padVide = true;
+};
+pad.onpointerdown = e => { trace = true; padVide = false; pad.setPointerCapture(e.pointerId); const g = pad.getContext('2d'); g.beginPath(); g.moveTo(...pt(e)); g.lineTo(...pt(e)); g.stroke(); };
+pad.onpointermove = e => { if (trace) { const g = pad.getContext('2d'); g.lineTo(...pt(e)); g.stroke(); } };
+pad.onpointerup = pad.onpointercancel = () => trace = false;
+$('#sigEffacer').onclick = () => { pad.getContext('2d').clearRect(0, 0, pad.width, pad.height); padVide = true; };
+$('#sigOk').onclick = () => {
+  if (padVide) return alert('Le client doit d\'abord signer dans le cadre.');
+  Object.assign(cur(), {sig: pad.toDataURL('image/png'), sigDate: today(), statut: 'accepte'});
+  $('#dlgSign').close();
+  remplir(); modifie();
+};
+$('#bSigRetirer').onclick = () => {
+  if (!confirm('Retirer la signature du client ?')) return;
+  Object.assign(cur(), {sig: '', sigDate: ''});
+  remplir(); modifie();
+};
+$('#bTransformer').onclick = () => {
+  const d = cur(), {acompte} = montants(d);
+  if (d.factureRef && !confirm(`Ce devis a déjà donné la facture ${d.factureRef}. En créer une autre ?`)) return;
+  const verse = acompte > 0 && confirm(`Le client a-t-il déjà versé l'acompte de ${fmt(acompte)} ?\n\nOK : il sera déduit de la facture (« reste à payer »).\nAnnuler : pas de déduction.`);
+  d.statut = 'accepte';
+  creer(d, 'facture');
+  const f = cur();
+  Object.assign(f, {devisRef: d.numero, acompteVerse: verse ? (acompte / 100).toFixed(2).replace('.', ',') : ''});
+  d.factureRef = f.numero;
+  sauver(); remplir(); rendu();
 };
 
 // ---------- Impression / PDF ----------
@@ -698,7 +869,7 @@ $('#bPdf').onclick = async () => {
       jsPDF: {unit: 'mm', format: 'a4'},
       pagebreak: {avoid: 'tr'}
     }).from($('#facture')).outputPdf('blob');
-    const nom = `Facture ${f.numero}${f.client.nom ? ' - ' + f.client.nom : ''}.pdf`.replace(/[\\/:*?"<>|]/g, '-');
+    const nom = `${f.type === 'devis' ? 'Devis' : 'Facture'} ${f.numero}${f.client.nom ? ' - ' + f.client.nom : ''}.pdf`.replace(/[\\/:*?"<>|]/g, '-');
     await partager(new File([blob], nom, {type: 'application/pdf'}));
   } catch (e) {
     alert('Erreur PDF : ' + e.message);
