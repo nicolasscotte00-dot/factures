@@ -58,11 +58,13 @@ input,select,textarea{display:block;width:100%;margin-top:4px;font:inherit;font-
 input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
 textarea{resize:vertical}
 .hint{width:100%;margin-bottom:16px;background:#fff6d9;text-align:left}
-.ligne{display:grid;grid-template-columns:70px 64px 1fr 96px;grid-template-areas:"d d d x" "q u p t" "c c c r";gap:8px;padding:12px 0;border-bottom:1px solid var(--line)}
+.ligne{display:grid;grid-template-columns:70px 64px 1fr 96px;grid-template-areas:"d d d x" "q u p t" "c c c r" "n n n n";gap:8px;padding:12px 0;border-bottom:1px solid var(--line)}
+.ligne .n{grid-area:n}
+.ligne .ax{grid-area:x;display:flex;gap:6px;justify-content:flex-end;align-self:end}
+.ligne .ax button{padding:9px 10px}
 .ligne:first-child{padding-top:0}
 .ligne .d{grid-area:d}.ligne .q{grid-area:q}.ligne .u{grid-area:u}.ligne .p{grid-area:p}.ligne .c{grid-area:c}.ligne .r{grid-area:r}
 .x,button.danger{color:var(--danger);background:#fbeceb}
-.ligne .x{grid-area:x;justify-self:end;align-self:end}
 .ristourne{margin-top:14px;max-width:260px}
 .chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:4px}
 .chips button{white-space:nowrap;padding:8px 10px}
@@ -116,7 +118,8 @@ details pre{white-space:pre-wrap;font-size:12px;background:#f5f7fa;padding:8px;b
 .inv td{padding:6px 8px;border-bottom:1px solid #e5e8ee;vertical-align:top}
 .inv .n{text-align:right;white-space:nowrap}
 .inv .vide{color:#aaa;text-align:center}
-.inv td small{color:#777}
+.inv td small{display:block;color:#777}
+.inv td .rq{display:block;white-space:pre-line;font-style:italic;color:#666;font-size:.92em;margin-top:1px}
 .inv .grp td{padding-top:10px;font-weight:700;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--c);background:var(--c2)}
 .inv .st td{font-weight:600;text-align:right;border-bottom:2px solid #dde2ea}
 .inv .tot{width:320px;margin:16px 0 0 auto}
@@ -504,6 +507,7 @@ const badge = f => f.type === 'devis' ? `<span class="badge ${statutDe(f)}">${ST
 
 function ouvrir(id) {
   db.courante = id;
+  noteOuverte = -1;
   sauver(); remplir(); renderLignes(); rendu();
 }
 
@@ -533,18 +537,23 @@ function majDocUi() {
   $('#bTransformer').textContent = f.factureRef ? `✓ Déjà transformé (${f.factureRef}) – recommencer` : '✓ Transformer en facture';
 }
 
+let noteOuverte = -1; // ligne dont on vient d'ouvrir la remarque (encore vide)
 function renderLignes() {
   const f = cur(), t = calc(f);
   $('#lignes').innerHTML = f.lignes.map((l, i) => `
     <div class="ligne">
       <label class="d">Désignation<input name="l.desc.${i}" value="${esc(l.desc)}"></label>
-      <button class="x" data-del="${i}" aria-label="Supprimer la ligne">✕</button>
+      <div class="ax">
+        <button data-note="${i}" title="Ajouter une remarque" aria-label="Remarque">💬</button>
+        <button class="x" data-del="${i}" aria-label="Supprimer la ligne">✕</button>
+      </div>
       <label class="q">Qté<input name="l.qte.${i}" inputmode="decimal" value="${esc(l.qte)}"></label>
       <label class="u">Unité<input name="l.unite.${i}" value="${esc(l.unite)}"></label>
       <label class="p">Prix unit. €<input name="l.pu.${i}" inputmode="decimal" value="${esc(l.pu)}"></label>
       <output class="t" id="t${i}">${fmt(t.lignes[i])}</output>
       <label class="c">Métier<select name="l.cat.${i}">${optionsCat(l.cat)}</select></label>
       <label class="r">Remise<input name="l.remise.${i}" placeholder="10 % ou 5" inputmode="decimal" value="${esc(l.remise)}"></label>
+      ${l.note || i === noteOuverte ? `<label class="n">Remarque<textarea name="l.note.${i}" rows="2" placeholder="Ex. : prise posée dans la cuisine, côté évier">${esc(l.note)}</textarea></label>` : ''}
     </div>`).join('');
   majCompteurs();
 }
@@ -616,8 +625,13 @@ document.addEventListener('click', e => {
       qte: '', unite: km ? 'km' : 'h', pu: km ? p.km : p.taux, cat: '', remise: ''});
     renderLignes(); modifie();
     $(`[name="l.qte.${f.lignes.length - 1}"]`).focus();
+  } else if (b.dataset.note) {
+    noteOuverte = +b.dataset.note;
+    renderLignes();
+    $(`[name="l.note.${noteOuverte}"]`).focus();
   } else if (b.dataset.del) {
     f.lignes.splice(+b.dataset.del, 1);
+    noteOuverte = -1;
     renderLignes(); modifie();
   } else if (b.dataset.tab) {
     document.body.dataset.tab = b.dataset.tab;
@@ -648,7 +662,7 @@ function rendu() {
   const noms = db.catalogue.map(c => c.nom);
   const groupes = [...noms, ''].map(nom => [nom, lignes.filter(([l]) => (noms.includes(l.cat) ? l.cat : '') === nom)]).filter(([, ls]) => ls.length);
   const tr = ([l, tot]) => `
-        <tr><td>${esc(l.desc)}${String(l.remise ?? '').trim() ? `<br><small>Remise ${remiseTxt(l.remise)}</small>` : ''}</td>
+        <tr><td>${esc(l.desc)}${String(l.note ?? '').trim() ? `<span class="rq">${esc(l.note.trim())}</span>` : ''}${String(l.remise ?? '').trim() ? `<small>Remise ${remiseTxt(l.remise)}</small>` : ''}</td>
         <td class="n">${nbFr(num(l.qte))} ${esc(l.unite)}</td><td class="n">${eur.format(num(l.pu))}</td><td class="n">${fmt(tot)}</td></tr>`;
   const corps = groupes.some(([nom]) => nom)
     ? groupes.map(([nom, ls]) => `<tr class="grp"><td colspan="4">${esc(nom || 'Divers')}</td></tr>${ls.map(tr).join('')}
@@ -865,7 +879,7 @@ $('#bPdf').onclick = async () => {
     const blob = await html2pdf().set({
       margin: 0,
       image: {type: 'jpeg', quality: 0.95},
-      html2canvas: {scale: 2},
+      html2canvas: {scale: 2, scrollX: 0, scrollY: 0}, // sans ça, le PDF sort blanc quand la page est défilée
       jsPDF: {unit: 'mm', format: 'a4'},
       pagebreak: {avoid: 'tr'}
     }).from($('#facture')).outputPdf('blob');
