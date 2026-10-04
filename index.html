@@ -180,6 +180,8 @@ body[data-doc=facture] .seulDevis,body[data-doc=devis] .seulFacture{display:none
 .badge{display:inline-block;font-size:11px;font-weight:600;padding:1px 8px;border-radius:9px;margin-left:6px;vertical-align:1px;text-transform:none;letter-spacing:0}
 .badge.attente{background:#fff3cd;color:#7a5b00}.badge.accepte{background:#dcfce7;color:#166534}
 .badge.refuse{background:#fee2e2;color:#991b1b}.badge.expire{background:#e5e7eb;color:#4b5563}
+.badge.encours{background:#fff3cd;color:#7a5b00}.badge.paye{background:#dcfce7;color:#166534}
+.opts{display:flex;flex-wrap:wrap;gap:10px 20px;margin-top:14px}
 .htabs{display:flex;gap:4px;background:#e3e8ef;border-radius:10px;padding:4px;margin-bottom:12px}
 .htabs button{flex:1;background:none;padding:8px}.htabs button.on{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12)}
 .choix{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -241,6 +243,16 @@ body[data-doc=facture] .seulDevis,body[data-doc=devis] .seulFacture{display:none
         <label>Date<input type="date" name="f.date"></label>
         <label><span id="lblEch">Échéance</span><input type="date" name="f.echeance"></label>
         <label class="seulFacture" id="champVerse">Acompte déjà versé (€)<input name="f.acompteVerse" inputmode="decimal" placeholder="0"></label>
+        <label class="seulFacture">Statut
+          <select name="f.paiement">
+            <option value="encours">En cours</option>
+            <option value="paye">Payé</option>
+          </select>
+        </label>
+      </div>
+      <div class="opts">
+        <label class="chk seulFacture"><input type="checkbox" id="cComptant"> 💶 Paiement comptant</label>
+        <label class="chk"><input type="checkbox" id="cQrDoc"> Code QR de paiement</label>
       </div>
     </div>
 
@@ -377,7 +389,7 @@ body[data-doc=facture] .seulDevis,body[data-doc=devis] .seulFacture{display:none
       <label>Couleur principale<input type="color" name="r.couleur"></label>
       <label>Couleur du total<input type="color" name="r.couleurTotal"></label>
     </div>
-    <p><label class="chk"><input type="checkbox" id="cQr"> QR code de paiement sur la facture (virement pré-rempli par l'app bancaire du client)</label></p>
+    <p><label class="chk"><input type="checkbox" id="cQr"> « Code QR de paiement » coché d'office sur les nouvelles factures et devis (virement pré-rempli par l'app bancaire du client)</label></p>
     <h3>Équipe</h3>
     <p class="note">Chaque personne a ses tarifs facturés au client (heure, km, forfaits). Elle a ensuite ses boutons « ＋ » dans les lignes de la facture. Un forfait sans prix n'a pas de bouton.</p>
     <div id="equipe"></div>
@@ -498,6 +510,8 @@ function creer(base, type = 'facture') {
     client: base ? {...base.client} : {nom: '', adresse: '', email: '', tva: ''},
     lignes: base ? base.lignes.map(l => ({...l})) : [{desc: '', qte: '1', unite: '', pu: ''}],
     ristourne: base?.ristourne ?? '',
+    qr: db.reglages.qr !== false, // case « Code QR » du document, cochée selon le réglage
+    ...(devis ? {} : {paiement: 'encours'}),
     notes: base ? base.notes : db.reglages.notes,
     ...(devis ? {statut: 'attente', acompte: base?.acompte ?? db.reglages.acompteDevis} : {})
   };
@@ -512,7 +526,9 @@ function statutDe(f) {
   const s = f.statut || 'attente';
   return s === 'attente' && f.echeance && f.echeance < today() ? 'expire' : s;
 }
-const badge = f => f.type === 'devis' ? `<span class="badge ${statutDe(f)}">${STATUTS[statutDe(f)]}</span>` : '';
+const badge = f => f.type === 'devis' ? `<span class="badge ${statutDe(f)}">${STATUTS[statutDe(f)]}</span>`
+  : f.paiement === 'paye' ? `<span class="badge paye">Payé${f.comptant ? ' comptant' : ''}</span>` : '<span class="badge encours">En cours</span>';
+const avecQr = f => (f.qr ?? db.reglages.qr) !== false && !f.comptant; // documents anciens : le réglage général
 
 function ouvrir(id) {
   db.courante = id;
@@ -544,6 +560,10 @@ function majDocUi() {
   $('#sigEtat').textContent = f.sig ? `✓ Signé par le client le ${dt(f.sigDate)}.` : 'Pas encore signé : le client peut signer sur cet écran, ou à la main sur le devis imprimé.';
   $('#bSigRetirer').hidden = !f.sig;
   $('#bTransformer').textContent = f.factureRef ? `✓ Déjà transformé (${f.factureRef}) – recommencer` : '✓ Transformer en facture';
+  $('[name="f.paiement"]').value = f.paiement === 'paye' ? 'paye' : 'encours';
+  $('#cComptant').checked = !!f.comptant;
+  $('#cQrDoc').checked = (f.qr ?? db.reglages.qr) !== false;
+  $('#cQrDoc').disabled = !!f.comptant; // payée en liquide : pas de QR
 }
 
 let noteOuverte = -1; // ligne dont on vient d'ouvrir la remarque (encore vide)
@@ -585,7 +605,11 @@ function saisie(e) {
   if (s === 'f') {
     f[k] = el.value;
     if (k === 'date') $('[name="f.echeance"]').value = f.echeance = echeanceDe(el.value, f.type);
-    if (k === 'statut' || k === 'echeance') majDocUi();
+    if (k === 'paiement') { // passée en « En cours » : ce n'est plus un paiement comptant
+      f.payeLe = el.value === 'paye' ? (f.payeLe || today()) : '';
+      if (el.value !== 'paye') f.comptant = false;
+    }
+    if (k === 'statut' || k === 'echeance' || k === 'paiement') majDocUi();
   } else if (s === 'c') {
     f.client[k] = el.value;
     const connu = k === 'nom' && clientConnu(el.value);
@@ -722,9 +746,10 @@ function rendu() {
     </div>
     ${MENTIONS[f.tva] ? `<p class="mention">${MENTIONS[f.tva]}</p>` : ''}
     <div class="bas">
-      ${!r.iban ? '<div></div>' : devis
-        ? (m.acompte ? `<div class="pay">${qrPaiement(m.acompte, `Acompte devis ${f.numero}`)}<div><b>Acompte à la commande</b><br>${fmt(m.acompte)} à verser à la signature sur le compte ${esc(r.iban)}${r.bic ? ` (BIC ${esc(r.bic)})` : ''}<br>Communication : acompte devis ${esc(f.numero)}</div></div>` : '<div></div>')
-        : `<div class="pay">${qrPaiement(m.aPayer, `Facture ${f.numero}`)}<div><b>Paiement</b><br>${m.verse ? `${fmt(m.aPayer)} à verser` : 'À verser'} sur le compte ${esc(r.iban)}${r.bic ? ` (BIC ${esc(r.bic)})` : ''}${f.echeance ? ` avant le ${dt(f.echeance)}` : ''}<br>Communication : facture ${esc(f.numero)}</div></div>`}
+      ${!devis && f.comptant ? `<div class="pay"><div><b>Paiement</b><br>Payée comptant le ${dt(f.payeLe || f.date)}.</div></div>`
+        : !r.iban ? '<div></div>' : devis
+        ? (m.acompte ? `<div class="pay">${avecQr(f) ? qrPaiement(m.acompte, `Acompte devis ${f.numero}`) : ''}<div><b>Acompte à la commande</b><br>${fmt(m.acompte)} à verser à la signature sur le compte ${esc(r.iban)}${r.bic ? ` (BIC ${esc(r.bic)})` : ''}<br>Communication : acompte devis ${esc(f.numero)}</div></div>` : '<div></div>')
+        : `<div class="pay">${avecQr(f) ? qrPaiement(m.aPayer, `Facture ${f.numero}`) : ''}<div><b>Paiement</b><br>${m.verse ? `${fmt(m.aPayer)} à verser` : 'À verser'} sur le compte ${esc(r.iban)}${r.bic ? ` (BIC ${esc(r.bic)})` : ''}${f.echeance ? ` avant le ${dt(f.echeance)}` : ''}<br>Communication : facture ${esc(f.numero)}</div></div>`}
       ${devis ? `<div class="accord"><b>Bon pour accord</b><br>
         Nom : ${esc(c.nom) || '……………………………'}<br>
         Date : ${f.sig ? dt(f.sigDate) : '……………………………'}
@@ -765,12 +790,19 @@ $('#themes').addEventListener('click', e => {
   $('[name="r.couleur"]').value = r.couleur = THEMES[r.theme].c; // chaque thème part de sa couleur, modifiable ensuite
   sauver(); renderThemes(); rendu();
 });
-$('#cQr').onchange = e => { db.reglages.qr = e.target.checked; sauver(); rendu(); };
+$('#cQr').onchange = e => { db.reglages.qr = e.target.checked; sauver(); }; // valeur d'office des nouveaux documents
+// Cases du document : payé en liquide (→ statut « Payé », pas de virement ni QR) et QR de paiement.
+$('#cComptant').onchange = e => {
+  const f = cur();
+  Object.assign(f, e.target.checked ? {comptant: true, paiement: 'paye', payeLe: f.payeLe || today()} : {comptant: false, paiement: 'encours', payeLe: ''});
+  majDocUi(); modifie();
+};
+$('#cQrDoc').onchange = e => { cur().qr = e.target.checked; modifie(); };
 
 // QR de paiement européen (norme EPC) : l'app bancaire du client pré-remplit le virement.
 function qrPaiement(cts, communication) {
   const r = db.reglages, iban = (r.iban || '').replace(/\s/g, '').toUpperCase();
-  if (!r.qr || !window.qrcode || !iban || !String(r.nom).trim() || cts <= 0) return '';
+  if (!window.qrcode || !iban || !String(r.nom).trim() || cts <= 0) return '';
   const q = qrcode(0, 'M');
   q.addData(['BCD', '002', '1', 'SCT', (r.bic || '').replace(/\s/g, '').toUpperCase(), String(r.nom).trim().slice(0, 70), iban,
     'EUR' + (cts / 100).toFixed(2), '', '', communication.slice(0, 140)].join('\n'), 'Byte');
