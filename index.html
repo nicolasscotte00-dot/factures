@@ -94,6 +94,16 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .hi{display:flex;gap:6px;margin-bottom:8px}
 .hi button:first-child{flex:1;text-align:left;background:#f1f4f8}
 .hi.on button:first-child{outline:2px solid var(--accent)}
+.dossier{margin-bottom:8px;border:1px solid var(--line);border-radius:12px;background:#f7f9fc}
+.dossier summary{list-style:none;cursor:pointer;display:flex;flex-direction:column;gap:2px;padding:12px 14px}
+.dossier summary::-webkit-details-marker{display:none}
+.dossier summary small{color:var(--muted)}
+.dossier .ico::after{content:"📁";font-style:normal}
+.dossier[open] .ico::after{content:"📂"}
+.dossier[open] summary{border-bottom:1px solid var(--line)}
+.dossier .hi{margin:8px}
+.dossier .hi button:first-child{background:#fff}
+.du{color:#b45309;font-weight:600}
 .hi small{display:block;color:var(--muted)}
 input[type=checkbox]{width:22px;height:22px;margin:0;flex:none}
 input[type=color]{height:44px;padding:3px;cursor:pointer}
@@ -818,20 +828,52 @@ new ResizeObserver(([e]) => {
 
 // ---------- Historique ----------
 let histType = 'facture';
+// Un dossier par client (nom sans casse ni espaces autour), du client le plus récent au plus ancien.
+const cleClient = f => f.client.nom.trim().toLowerCase();
+const dossiersOuverts = new Set();
+// Nom du dossier : l'orthographe la plus utilisée pour ce client (« Famille Dupont » plutôt que « famille dupont »).
+function ortho(fs) {
+  const n = {};
+  for (const f of fs) n[f.client.nom.trim()] = (n[f.client.nom.trim()] || 0) + 1;
+  return Object.keys(n).sort((a, b) => n[b] - n[a])[0];
+}
 function renderHist() {
-  const devis = histType === 'devis';
-  const liste = db.factures.filter(f => (f.type === 'devis') === devis).sort((a, b) => b.numero.localeCompare(a.numero, 'fr', {numeric: true}));
+  const devis = histType === 'devis', parClient = new Map();
+  for (const f of db.factures.filter(f => (f.type === 'devis') === devis)) {
+    if (!parClient.has(cleClient(f))) parClient.set(cleClient(f), []);
+    parClient.get(cleClient(f)).push(f);
+  }
+  const dossiers = [...parClient].map(([k, fs]) => ({k, fs: fs.sort((a, b) => b.numero.localeCompare(a.numero, 'fr', {numeric: true})),
+    nom: ortho(fs) || '(sans client)', recent: fs.reduce((m, f) => f.date > m ? f.date : m, '')}))
+    .sort((a, b) => b.recent.localeCompare(a.recent));
+  const ligne = f => `
+      <div class="hi ${f.id === db.courante ? 'on' : ''}">
+        <button data-open="${f.id}"><b>${esc(f.numero)}</b>${badge(f)}
+          <small>${dt(f.date)} · ${fmt(calc(f).ttc)}${f.devisRef ? ` · selon ${esc(f.devisRef)}` : ''}${f.factureRef ? ` · → ${esc(f.factureRef)}` : ''}</small></button>
+        <button data-dup="${f.id}" title="Dupliquer" aria-label="Dupliquer">⧉</button>
+        <button data-suppr="${f.id}" title="Supprimer" aria-label="Supprimer">🗑</button>
+      </div>`;
   $('#hist').innerHTML = `
     <div class="htabs"><button data-ht="facture" class="${devis ? '' : 'on'}">🧾 Factures</button><button data-ht="devis" class="${devis ? 'on' : ''}">📝 Devis</button></div>
-    ${liste.map(f => `
-    <div class="hi ${f.id === db.courante ? 'on' : ''}">
-      <button data-open="${f.id}"><b>${esc(f.numero)}</b> ${esc(f.client.nom || '(sans client)')}${badge(f)}
-        <small>${dt(f.date)} · ${fmt(calc(f).ttc)}${f.devisRef ? ` · selon ${esc(f.devisRef)}` : ''}${f.factureRef ? ` · → ${esc(f.factureRef)}` : ''}</small></button>
-      <button data-dup="${f.id}" title="Dupliquer" aria-label="Dupliquer">⧉</button>
-      <button data-suppr="${f.id}" title="Supprimer" aria-label="Supprimer">🗑</button>
-    </div>`).join('') || `<p class="note">Aucun${devis ? ' devis' : 'e facture'}.</p>`}`;
+    ${dossiers.map(d => {
+      const total = d.fs.reduce((a, f) => a + calc(f).ttc, 0);
+      const du = devis ? 0 : d.fs.filter(f => f.paiement !== 'paye').reduce((a, f) => a + montants(f).aPayer, 0);
+      return `<details class="dossier" data-k="${esc(d.k)}" ${dossiersOuverts.has(d.k) ? 'open' : ''}>
+        <summary><span><i class="ico"></i> <b>${esc(d.nom)}</b></span>
+          <small>${d.fs.length} ${devis ? 'devis' : `facture${d.fs.length > 1 ? 's' : ''}`} · ${fmt(total)}${du ? ` · <span class="du">${fmt(du)} à recevoir</span>` : ''}</small></summary>
+        ${d.fs.map(ligne).join('')}
+      </details>`;
+    }).join('') || `<p class="note">Aucun${devis ? ' devis' : 'e facture'}.</p>`}`;
 }
-$('#bHist').onclick = () => { histType = cur().type === 'devis' ? 'devis' : 'facture'; renderHist(); $('#dlgHist').showModal(); };
+// « toggle » ne remonte pas : écoute en capture, pour garder les dossiers ouverts d'un affichage à l'autre.
+$('#hist').addEventListener('toggle', e => {
+  if (e.target.matches('.dossier')) dossiersOuverts[e.target.open ? 'add' : 'delete'](e.target.dataset.k);
+}, true);
+$('#bHist').onclick = () => {
+  histType = cur().type === 'devis' ? 'devis' : 'facture';
+  dossiersOuverts.clear(); dossiersOuverts.add(cleClient(cur())); // le dossier du document ouvert est déplié
+  renderHist(); $('#dlgHist').showModal();
+};
 $('#bReglages').onclick = $('#hint').onclick = () => $('#dlgReglages').showModal();
 $('#bNouvelle').onclick = () => $('#dlgNouveau').showModal();
 $('#dlgNouveau').addEventListener('click', e => {
