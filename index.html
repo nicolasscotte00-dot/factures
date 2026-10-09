@@ -41,6 +41,11 @@ header h1{font-size:18px;margin:0 auto 0 0}
 header h1 img{display:block;height:40px;max-width:150px;object-fit:contain}
 .logo-apercu img{display:block;max-height:70px;max-width:220px;margin-bottom:8px}
 header button{background:rgba(255,255,255,.16);color:#fff;padding:8px 11px}
+@media (max-width:420px){ /* petits téléphones : tout l'en-tête sur une ligne */
+  header{gap:4px;padding-left:12px;padding-right:12px}
+  header h1{font-size:16px}
+  header button{padding:8px 8px;font-size:14px}
+}
 .tabs{display:flex;gap:4px;margin:12px 16px 4px;background:#e3e8ef;border-radius:10px;padding:4px}
 .tabs button{flex:1;background:none;padding:8px}
 .tabs button.on{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12)}
@@ -192,6 +197,26 @@ body[data-doc=facture] .seulDevis,body[data-doc=devis] .seulFacture{display:none
 .badge.refuse{background:#fee2e2;color:#991b1b}.badge.expire{background:#e5e7eb;color:#4b5563}
 .badge.encours{background:#fff3cd;color:#7a5b00}.badge.paye{background:#dcfce7;color:#166534}
 .opts{display:flex;flex-wrap:wrap;gap:10px 20px;margin-top:14px}
+.card .note{font-size:13px;color:var(--muted)}
+/* Chantier et agenda */
+a.btn{display:inline-block;font-size:15px;border-radius:10px;padding:10px 12px;background:#e6ebf3;color:var(--ink);text-decoration:none}
+a.btn[aria-disabled=true]{opacity:.45;pointer-events:none}
+.agnav{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.agnav b{font-size:17px;text-transform:capitalize}
+.mois{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:12px}
+.mois .js{font-size:11px;color:var(--muted);text-align:center;padding:2px 0}
+.mois button{position:relative;aspect-ratio:1;padding:0;background:#f1f4f8;font-size:14px;border:2px solid transparent}
+.mois button.ok{background:var(--accent);color:#fff}
+.mois button.pale{background:#fff;border:2px dashed var(--accent);color:var(--ink)}
+.mois button.auj{font-weight:800;text-decoration:underline}
+.mois button.choisi{outline:3px solid var(--ink);outline-offset:1px}
+.mois button i{position:absolute;right:3px;top:2px;font-size:9px;font-style:normal}
+.ch{border:1px solid var(--line);border-left:5px solid var(--accent);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#fff}
+.ch.pale{border-left-style:dashed;background:#fafbfd}
+.ch .add{margin-top:8px}
+.inv .duo{display:flex;justify-content:flex-end;align-items:flex-start;gap:16px;margin:22px 0 18px}
+.inv .duo .cl{margin:0}
+.inv .duo .chb{margin-right:auto}
 .htabs{display:flex;gap:4px;background:#e3e8ef;border-radius:10px;padding:4px;margin-bottom:12px}
 .htabs button{flex:1;background:none;padding:8px}.htabs button.on{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12)}
 .choix{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -224,6 +249,7 @@ body[data-doc=facture] .seulDevis,body[data-doc=devis] .seulFacture{display:none
   <header>
     <h1 id="titre">Factures</h1>
     <button id="bNouvelle">＋ Nouveau</button>
+    <button id="bAgenda" aria-label="Agenda des chantiers" title="Agenda des chantiers">📅</button>
     <button id="bHist">Historique</button>
     <button id="bReglages" aria-label="Réglages">⚙︎</button>
   </header>
@@ -283,6 +309,24 @@ body[data-doc=facture] .seulDevis,body[data-doc=devis] .seulFacture{display:none
         <button id="bSigner">✍️ Faire signer le client</button>
         <button id="bSigRetirer" class="danger">Retirer la signature</button>
         <button id="bTransformer" class="primary">✓ Transformer en facture</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>📅 Chantier</h2>
+      <div class="grid">
+        <label>Début des travaux<input type="date" name="k.debut"></label>
+        <label>Fin des travaux<input type="date" name="k.fin"></label>
+        <label>Heure d'arrivée<input type="time" name="k.heure"></label>
+        <label class="full">Adresse du chantier<textarea name="k.adresse" rows="2" placeholder="Si différente de l'adresse du client"></textarea></label>
+      </div>
+      <p class="note" style="margin-bottom:4px">Qui vient sur le chantier ?</p>
+      <div class="opts" id="quiVient" style="margin-top:0"></div>
+      <div class="add">
+        <a class="btn" id="lienMaps" target="_blank" rel="noopener">🧭 Google Maps</a>
+        <a class="btn" id="lienWaze" target="_blank" rel="noopener">🚗 Waze</a>
+        <button id="bIcs">📲 Calendrier du téléphone</button>
+        <button id="bVoirAgenda">📅 Voir l'agenda</button>
       </div>
     </div>
 
@@ -347,6 +391,11 @@ body[data-doc=facture] .seulDevis,body[data-doc=devis] .seulFacture{display:none
       <button class="primary" id="sigOk">Valider la signature</button>
     </div>
   </div>
+</dialog>
+
+<dialog id="dlgAgenda">
+  <div class="dlg-h"><h2>📅 Agenda des chantiers</h2><button autofocus onclick="this.closest('dialog').close()">Fermer</button></div>
+  <div class="dlg-b" id="agenda"></div>
 </dialog>
 
 <dialog id="dlgHist">
@@ -552,7 +601,7 @@ function remplir() {
   document.querySelectorAll('[name]').forEach(el => {
     const [s, k] = el.name.split('.');
     if (s === 'l') return; // lignes : gérées par renderLignes
-    el.value = (s === 'f' ? f[k] : s === 'c' ? f.client[k] : db.reglages[k]) ?? ''; // ?? '' : pas de reste de la facture précédente
+    el.value = (s === 'f' ? f[k] : s === 'c' ? f.client[k] : s === 'k' ? f.chantier?.[k] : db.reglages[k]) ?? ''; // ?? '' : pas de reste de la facture précédente
   });
   const noms = [...new Set(db.factures.map(x => x.client.nom.trim()).filter(Boolean))];
   $('#clients').innerHTML = noms.map(n => `<option value="${esc(n)}">`).join('');
@@ -574,6 +623,7 @@ function majDocUi() {
   $('#cComptant').checked = !!f.comptant;
   $('#cQrDoc').checked = (f.qr ?? db.reglages.qr) !== false;
   $('#cQrDoc').disabled = !!f.comptant; // payée en liquide : pas de QR
+  majChantierUi();
 }
 
 let noteOuverte = -1; // ligne dont on vient d'ouvrir la remarque (encore vide)
@@ -630,6 +680,11 @@ function saisie(e) {
   } else if (s === 'r') {
     db.reglages[k] = el.value;
     $('#hint').hidden = !!db.reglages.nom;
+  } else if (s === 'k') { // chantier : la fin suit le début tant qu'elle est vide ou avant lui
+    const c = f.chantier ??= {};
+    c[k] = el.value;
+    if (k === 'debut' && c.debut && (!c.fin || c.fin < c.debut)) $('[name="k.fin"]').value = c.fin = c.debut;
+    majChantierUi();
   } else return;
   modifie();
 }
@@ -681,7 +736,8 @@ document.addEventListener('click', e => {
     document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
     scrollTo(0, 0);
   } else if (b.dataset.open) {
-    ouvrir(b.dataset.open); $('#dlgHist').close();
+    ouvrir(b.dataset.open); $('#dlgHist').close(); $('#dlgAgenda').close();
+    $('.tabs [data-tab=saisie]').click();
   } else if (b.dataset.ht) {
     histType = b.dataset.ht; renderHist();
   } else if (b.dataset.dup) {
@@ -734,11 +790,18 @@ function rendu() {
       </div>
     </div>
     <div class="filet"></div>
+    <div class="duo">
+    ${f.chantier?.debut || f.chantier?.adresse?.trim() ? `<div class="cl chb">
+      <small>Travaux ${devis ? 'prévus' : 'réalisés'}</small>
+      ${f.chantier.debut ? `<b>${periodeCourte(f.chantier, devis)}</b>` : ''}
+      ${f.chantier.adresse?.trim() ? `<div class="pre">${esc(f.chantier.adresse.trim())}</div>` : ''}
+    </div>` : ''}
     <div class="cl">
       <small>${devis ? 'Devis pour' : 'Facturé à'}</small>
       <b>${esc(c.nom)}</b>
       <div class="pre">${esc(c.adresse)}</div>
       ${c.email ? `${esc(c.email)}<br>` : ''}${c.tva ? `TVA : ${esc(c.tva)}` : ''}
+    </div>
     </div>
     <table>
       <thead><tr><th>Désignation</th><th class="n">Qté</th><th class="n">Prix unit.</th><th class="n">Total${franchise ? '' : ' HTVA'}</th></tr></thead>
@@ -925,7 +988,8 @@ $('#bTransformer').onclick = () => {
   d.statut = 'accepte';
   creer(d, 'facture');
   const f = cur();
-  Object.assign(f, {devisRef: d.numero, acompteVerse: verse ? (acompte / 100).toFixed(2).replace('.', ',') : ''});
+  Object.assign(f, {devisRef: d.numero, acompteVerse: verse ? (acompte / 100).toFixed(2).replace('.', ',') : ''},
+    d.chantier ? {chantier: {...d.chantier, equipe: [...(d.chantier.equipe || [])]}} : {}); // le chantier suit (le devis sort de l'agenda)
   d.factureRef = f.numero;
   sauver(); remplir(); rendu();
 };
@@ -1290,6 +1354,133 @@ $('#fImport').onchange = async e => {
     db = d; demarrer(); $('#dlgReglages').close();
   } catch (err) { alert('Import impossible : ' + err.message); }
 };
+
+// ---------- Chantier et agenda ----------
+// Place d'un document dans l'agenda : facture ou devis accepté/signé = confirmé ; devis en attente = à confirmer ;
+// devis refusé, ou déjà transformé en facture (c'est la facture qui porte le chantier) = absent.
+function etatChantier(f) {
+  if (!f.chantier?.debut) return null;
+  if (f.type !== 'devis') return 'confirme';
+  if (f.factureRef || f.statut === 'refuse') return null;
+  return f.statut === 'accepte' || f.sig ? 'confirme' : 'aconfirmer';
+}
+const finChantier = c => c.fin && c.fin >= c.debut ? c.fin : c.debut;
+const heureFr = h => h ? h.replace(/^0(?=\d)/, '').replace(':', 'h') : ''; // « 8h00 »
+function periode(c, avecHeure = true) {
+  const fin = finChantier(c), h = avecHeure && c.heure ? ` (arrivée ${heureFr(c.heure)})` : '';
+  return (fin === c.debut ? `le ${dt(c.debut)}` : `du ${dt(c.debut)} au ${dt(fin)}`) + h;
+}
+// Version courte pour la facture (tient sur une ligne) : « Du 12/10 au 14/10/2026 · 8h00 ».
+function periodeCourte(c, avecHeure = true) {
+  const fin = finChantier(c), jm = s => dt(s).slice(0, 5);
+  const p = fin === c.debut ? `Le ${dt(c.debut)}` : `Du ${c.debut.slice(0, 4) === fin.slice(0, 4) ? jm(c.debut) : dt(c.debut)} au ${dt(fin)}`;
+  return p + (avecHeure && c.heure ? ` · ${heureFr(c.heure)}` : '');
+}
+// Auto-contrôle (message dans la console s'il est faux)
+(() => { const c = {debut: '2026-10-12', fin: '2026-10-14'};
+  console.assert(periodeCourte({...c, heure: '08:00'}) === 'Du 12/10 au 14/10/2026 · 8h00' && periodeCourte({debut: '2026-12-30', fin: '2027-01-02'}, false) === 'Du 30/12/2026 au 02/01/2027'
+    && periodeCourte({debut: '2026-10-12'}) === 'Le 12/10/2026', 'Agenda : période courte fausse', periodeCourte({...c, heure: '08:00'}));
+  console.assert(etatChantier({type: 'devis', statut: 'attente', chantier: c}) === 'aconfirmer'
+    && etatChantier({type: 'devis', statut: 'attente', sig: 'x', chantier: c}) === 'confirme'
+    && etatChantier({type: 'devis', statut: 'refuse', chantier: c}) === null
+    && etatChantier({type: 'devis', statut: 'accepte', factureRef: '2026-003', chantier: c}) === null
+    && etatChantier({chantier: c}) === 'confirme' && etatChantier({chantier: {}}) === null
+    && finChantier({debut: '2026-10-12', fin: '2026-10-01'}) === '2026-10-12', 'Agenda : état de chantier faux'); })();
+
+const nomQui = id => id === 'moi' ? (db.reglages.nom?.trim() || 'Moi') : db.equipe.find(p => p.id === id)?.nom?.trim();
+const destination = f => (f.chantier?.adresse?.trim() || f.client.adresse.trim()).replace(/\n/g, ', ');
+const lienMaps = d => `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(d)}`;
+const lienWaze = d => `https://waze.com/ul?q=${encodeURIComponent(d)}&navigate=yes`;
+
+function majChantierUi() { // cases « qui vient » et liens d'itinéraire de la carte Chantier
+  const f = cur(), equipe = f.chantier?.equipe || [];
+  $('#quiVient').innerHTML = [['moi', 'Moi'], ...db.equipe.filter(p => p.nom.trim()).map(p => [p.id, `${p.nom.trim()} (${STATUT[p.statut]})`])]
+    .map(([id, nom]) => `<label class="chk"><input type="checkbox" data-qui="${id}" ${equipe.includes(id) ? 'checked' : ''}> ${esc(nom)}</label>`).join('');
+  const d = destination(f);
+  for (const [sel, url] of [['#lienMaps', lienMaps], ['#lienWaze', lienWaze]]) {
+    $(sel).href = d ? url(d) : '#';
+    $(sel).setAttribute('aria-disabled', !d);
+  }
+  $('#bIcs').disabled = !f.chantier?.debut;
+}
+$('#quiVient').addEventListener('change', e => {
+  const id = e.target.dataset.qui;
+  if (!id) return;
+  const c = cur().chantier ??= {}, eq = new Set(c.equipe || []);
+  e.target.checked ? eq.add(id) : eq.delete(id);
+  c.equipe = [...eq];
+  sauver();
+});
+
+// Fichier .ics : ajoute le chantier au calendrier du téléphone (avec rappel).
+$('#bIcs').onclick = () => {
+  const f = cur(), c = f.chantier;
+  if (!c?.debut) return;
+  const jour = s => s.replace(/-/g, ''), fin = finChantier(c);
+  const nbJours = Math.round((new Date(fin + 'T12:00Z') - new Date(c.debut + 'T12:00Z')) / 864e5) + 1;
+  const txt = s => String(s ?? '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+  const qui = (c.equipe || []).map(nomQui).filter(Boolean).join(', ');
+  let horaire;
+  if (c.heure) { // chaque jour de l'heure d'arrivée à 17h (ou une heure plus tard si arrivée tardive), rappel 1 h avant
+    const [hh, mm] = c.heure.split(':').map(Number), hFin = String(Math.min(Math.max(hh + 1, 17), 23)).padStart(2, '0');
+    horaire = [`DTSTART:${jour(c.debut)}T${c.heure.replace(':', '')}00`, `DTEND:${jour(c.debut)}T${hFin}${String(mm).padStart(2, '0')}00`,
+      ...(nbJours > 1 ? [`RRULE:FREQ=DAILY;COUNT=${nbJours}`] : []), 'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:Chantier', 'TRIGGER:-PT1H', 'END:VALARM'];
+  } else { // journée(s) entière(s), rappel la veille à 9 h
+    horaire = [`DTSTART;VALUE=DATE:${jour(c.debut)}`, `DTEND;VALUE=DATE:${jour(plusJours(fin, 1))}`,
+      'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:Chantier', 'TRIGGER:-PT15H', 'END:VALARM'];
+  }
+  const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Factures//Chantier//FR', 'BEGIN:VEVENT',
+    `UID:${f.id}-${Date.now()}@factures`, `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`,
+    `SUMMARY:${txt(`Chantier ${f.client.nom.trim()}`.trim())}`, `LOCATION:${txt(destination(f))}`,
+    `DESCRIPTION:${txt(`${f.type === 'devis' ? 'Devis' : 'Facture'} ${f.numero}${qui ? `\nSur place : ${qui}` : ''}`)}`,
+    ...horaire, 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+  telecharger(new File([ics], `chantier-${f.numero}.ics`, {type: 'text/calendar'}));
+};
+
+let agMois = '', agJour = ''; // mois affiché (AAAA-MM) et jour choisi dans la grille
+function ouvrirAgenda(mois) { agMois = mois || today().slice(0, 7); agJour = ''; renderAgenda(); $('#dlgAgenda').showModal(); }
+$('#bAgenda').onclick = () => ouvrirAgenda();
+$('#bVoirAgenda').onclick = () => ouvrirAgenda(cur().chantier?.debut?.slice(0, 7));
+
+function renderAgenda() {
+  const [y, m] = agMois.split('-').map(Number), nbJ = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const decal = (new Date(Date.UTC(y, m - 1, 1)).getUTCDay() + 6) % 7; // lundi en premier
+  const iso = d => `${agMois}-${String(d).padStart(2, '0')}`;
+  const duMois = db.factures.map(f => ({f, etat: etatChantier(f)})).filter(x => x.etat)
+    .map(x => ({...x, debut: x.f.chantier.debut, fin: finChantier(x.f.chantier)}))
+    .filter(x => x.debut <= iso(nbJ) && x.fin >= iso(1)).sort((a, b) => a.debut.localeCompare(b.debut));
+  const le = j => duMois.filter(x => x.debut <= j && x.fin >= j);
+  const jours = Array.from({length: nbJ}, (_, i) => {
+    const j = iso(i + 1), ch = le(j), cl = ch.some(x => x.etat === 'confirme') ? 'ok' : ch.length ? 'pale' : '';
+    return `<button data-agj="${j}" class="${cl} ${j === today() ? 'auj' : ''} ${j === agJour ? 'choisi' : ''}">${i + 1}${ch.length > 1 ? `<i>${ch.length}</i>` : ''}</button>`;
+  });
+  const liste = agJour ? le(agJour) : duMois;
+  $('#agenda').innerHTML = `
+    <div class="agnav"><button data-agm="-1" aria-label="Mois précédent">◀</button>
+      <b>${new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString('fr-BE', {month: 'long', year: 'numeric', timeZone: 'UTC'})}</b>
+      <button data-agm="1" aria-label="Mois suivant">▶</button></div>
+    <div class="mois">${['L', 'M', 'M', 'J', 'V', 'S', 'D'].map(j => `<span class="js">${j}</span>`).join('')}${'<span></span>'.repeat(decal)}${jours.join('')}</div>
+    <p class="note">${agJour ? `Chantiers du ${dt(agJour)} · <a href="#" data-agj="">voir tout le mois</a>` : 'Plein : confirmé · pointillés : à confirmer (devis en attente).'}</p>
+    ${liste.map(({f, etat}) => {
+      const c = f.chantier, qui = (c.equipe || []).map(nomQui).filter(Boolean).join(', '), d = destination(f);
+      return `<div class="ch ${etat === 'confirme' ? '' : 'pale'}">
+        <b>${periode(c)}</b> <span class="badge ${etat === 'confirme' ? 'accepte' : 'attente'}">${etat === 'confirme' ? 'Confirmé' : 'À confirmer'}</span><br>
+        ${esc(f.client.nom || '(sans client)')} · ${f.type === 'devis' ? 'devis' : 'facture'} ${esc(f.numero)}
+        ${qui || d ? `<div class="note">${qui ? `👷 ${esc(qui)}` : ''}${qui && d ? ' · ' : ''}${d ? `📍 ${esc(d)}` : ''}</div>` : ''}
+        <div class="add"><button data-open="${f.id}">Ouvrir</button>${d ? `<a class="btn" href="${lienMaps(d)}" target="_blank" rel="noopener">🧭 Maps</a><a class="btn" href="${lienWaze(d)}" target="_blank" rel="noopener">🚗 Waze</a>` : ''}</div>
+      </div>`;
+    }).join('') || `<p class="note">Aucun chantier ${agJour ? 'ce jour-là' : 'ce mois-ci'}.</p>`}`;
+}
+$('#agenda').addEventListener('click', e => {
+  const b = e.target.closest('[data-agm],[data-agj]');
+  if (!b) return;
+  e.preventDefault();
+  if (b.dataset.agm) {
+    const [y, m] = agMois.split('-').map(Number), d = new Date(Date.UTC(y, m - 1 + +b.dataset.agm, 1));
+    agMois = d.toISOString().slice(0, 7); agJour = '';
+  } else agJour = b.dataset.agj === agJour ? '' : b.dataset.agj; // re-toucher le jour = tout le mois
+  renderAgenda();
+});
 
 // ---------- Catalogue seul : partage et fusion ----------
 // Fusionne src dans dest (listes de métiers) sans rien effacer : postes communs mis à jour
