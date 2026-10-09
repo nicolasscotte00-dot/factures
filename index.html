@@ -214,6 +214,12 @@ a.btn[aria-disabled=true]{opacity:.45;pointer-events:none}
 .ch{border:1px solid var(--line);border-left:5px solid var(--accent);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#fff}
 .ch.pale{border-left-style:dashed;background:#fafbfd}
 .ch .add{margin-top:8px}
+.ch.rdv{border-left-color:#7c3aed}
+.badge.rdv{background:#ede9fe;color:#5b21b6}
+.ajout{border:2px solid var(--accent);border-radius:12px;padding:12px;margin-bottom:12px;background:#fbfcfe}
+.ajout .grid{margin-top:8px}
+button.lier{display:block;width:100%;text-align:left;margin:6px 0;background:#f1f4f8}
+button.lier small{display:block;color:var(--muted)}
 .inv .duo{display:flex;justify-content:flex-end;align-items:flex-start;gap:16px;margin:22px 0 18px}
 .inv .duo .cl{margin:0}
 .inv .duo .chb{margin-right:auto}
@@ -1438,17 +1444,27 @@ $('#bIcs').onclick = () => {
 };
 
 let agMois = '', agJour = ''; // mois affiché (AAAA-MM) et jour choisi dans la grille
-function ouvrirAgenda(mois) { agMois = mois || today().slice(0, 7); agJour = ''; renderAgenda(); $('#dlgAgenda').showModal(); }
+let agMode = '', agRdv = null;  // ajout en cours : '' | 'choix' | 'lier' | 'rdv' (agRdv = rendez-vous édité)
+function ouvrirAgenda(mois) { agMois = mois || today().slice(0, 7); agJour = ''; agMode = ''; renderAgenda(); $('#dlgAgenda').showModal(); }
 $('#bAgenda').onclick = () => ouvrirAgenda();
 $('#bVoirAgenda').onclick = () => ouvrirAgenda(cur().chantier?.debut?.slice(0, 7));
+
+// Tout ce qui occupe l'agenda : chantiers des devis/factures, et rendez-vous simples (sans document).
+function entreesAgenda() {
+  const docs = db.factures.map(f => ({f, etat: etatChantier(f)})).filter(x => x.etat)
+    .map(x => ({...x, c: x.f.chantier, debut: x.f.chantier.debut, fin: finChantier(x.f.chantier)}));
+  const rdvs = db.rdv.filter(r => r.debut).map(r => ({r, etat: 'confirme', c: r, debut: r.debut, fin: finChantier(r)}));
+  return [...docs, ...rdvs].sort((a, b) => a.debut.localeCompare(b.debut) || (a.c.heure || '').localeCompare(b.c.heure || ''));
+}
+const adresseRdv = r => (r.adresse || '').trim().replace(/\n/g, ', ');
+// Client connu d'après son nom, dans tous les documents (le plus récent d'abord).
+const clientParNom = nom => (nom = nom.trim().toLowerCase()) && [...db.factures].reverse().find(f => f.client.nom.trim().toLowerCase() === nom)?.client;
 
 function renderAgenda() {
   const [y, m] = agMois.split('-').map(Number), nbJ = new Date(Date.UTC(y, m, 0)).getUTCDate();
   const decal = (new Date(Date.UTC(y, m - 1, 1)).getUTCDay() + 6) % 7; // lundi en premier
   const iso = d => `${agMois}-${String(d).padStart(2, '0')}`;
-  const duMois = db.factures.map(f => ({f, etat: etatChantier(f)})).filter(x => x.etat)
-    .map(x => ({...x, debut: x.f.chantier.debut, fin: finChantier(x.f.chantier)}))
-    .filter(x => x.debut <= iso(nbJ) && x.fin >= iso(1)).sort((a, b) => a.debut.localeCompare(b.debut));
+  const duMois = entreesAgenda().filter(x => x.debut <= iso(nbJ) && x.fin >= iso(1));
   const le = j => duMois.filter(x => x.debut <= j && x.fin >= j);
   const jours = Array.from({length: nbJ}, (_, i) => {
     const j = iso(i + 1), ch = le(j), cl = ch.some(x => x.etat === 'confirme') ? 'ok' : ch.length ? 'pale' : '';
@@ -1460,26 +1476,139 @@ function renderAgenda() {
       <b>${new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString('fr-BE', {month: 'long', year: 'numeric', timeZone: 'UTC'})}</b>
       <button data-agm="1" aria-label="Mois suivant">▶</button></div>
     <div class="mois">${['L', 'M', 'M', 'J', 'V', 'S', 'D'].map(j => `<span class="js">${j}</span>`).join('')}${'<span></span>'.repeat(decal)}${jours.join('')}</div>
-    <p class="note">${agJour ? `Chantiers du ${dt(agJour)} · <a href="#" data-agj="">voir tout le mois</a>` : 'Plein : confirmé · pointillés : à confirmer (devis en attente).'}</p>
-    ${liste.map(({f, etat}) => {
-      const c = f.chantier, qui = (c.equipe || []).map(nomQui).filter(Boolean).join(', '), d = destination(f);
-      return `<div class="ch ${etat === 'confirme' ? '' : 'pale'}">
-        <b>${periode(c)}</b> <span class="badge ${etat === 'confirme' ? 'accepte' : 'attente'}">${etat === 'confirme' ? 'Confirmé' : 'À confirmer'}</span><br>
-        ${esc(f.client.nom || '(sans client)')} · ${f.type === 'devis' ? 'devis' : 'facture'} ${esc(f.numero)}
-        ${qui || d ? `<div class="note">${qui ? `👷 ${esc(qui)}` : ''}${qui && d ? ' · ' : ''}${d ? `📍 ${esc(d)}` : ''}</div>` : ''}
-        <div class="add"><button data-open="${f.id}">Ouvrir</button>${d ? `<a class="btn" href="${lienMaps(d)}" target="_blank" rel="noopener">🧭 Maps</a><a class="btn" href="${lienWaze(d)}" target="_blank" rel="noopener">🚗 Waze</a>` : ''}</div>
-      </div>`;
-    }).join('') || `<p class="note">Aucun chantier ${agJour ? 'ce jour-là' : 'ce mois-ci'}.</p>`}`;
+    <p class="note">${agJour ? `Chantiers du ${dt(agJour)} · <a href="#" data-agj="">voir tout le mois</a>` : 'Plein : confirmé · pointillés : à confirmer (devis en attente). Touche un jour pour y ajouter un chantier.'}</p>
+    ${agJour ? blocAjout() : ''}
+    ${liste.map(x => x.f ? carteDoc(x) : carteRdv(x)).join('') || `<p class="note">Aucun chantier ${agJour ? 'ce jour-là' : 'ce mois-ci'}.</p>`}`;
 }
+
+const itineraire = d => d ? `<a class="btn" href="${lienMaps(d)}" target="_blank" rel="noopener">🧭 Maps</a><a class="btn" href="${lienWaze(d)}" target="_blank" rel="noopener">🚗 Waze</a>` : '';
+const ligneQui = (qui, d) => qui || d ? `<div class="note">${qui ? `👷 ${esc(qui)}` : ''}${qui && d ? ' · ' : ''}${d ? `📍 ${esc(d)}` : ''}</div>` : '';
+function carteDoc({f, etat, c}) {
+  const qui = (c.equipe || []).map(nomQui).filter(Boolean).join(', '), d = destination(f);
+  return `<div class="ch ${etat === 'confirme' ? '' : 'pale'}">
+    <b>${periode(c)}</b> <span class="badge ${etat === 'confirme' ? 'accepte' : 'attente'}">${etat === 'confirme' ? 'Confirmé' : 'À confirmer'}</span><br>
+    ${esc(f.client.nom || '(sans client)')} · ${f.type === 'devis' ? 'devis' : 'facture'} ${esc(f.numero)}
+    ${ligneQui(qui, d)}
+    <div class="add"><button data-open="${f.id}">Ouvrir</button>${itineraire(d)}</div>
+  </div>`;
+}
+function carteRdv({r}) {
+  const qui = (r.equipe || []).map(nomQui).filter(Boolean).join(', '), d = adresseRdv(r);
+  return `<div class="ch rdv">
+    <b>${periode(r)}</b> <span class="badge rdv">Rendez-vous</span><br>
+    ${esc(r.client || '(sans client)')}${r.note?.trim() ? `<div class="pre">${esc(r.note.trim())}</div>` : ''}
+    ${ligneQui(qui, d)}
+    <div class="add"><button data-rdvedit="${r.id}">Modifier</button><button class="primary" data-rdvdevis="${r.id}">📝 Créer le devis</button>${itineraire(d)}</div>
+  </div>`;
+}
+
+// Zone d'ajout sous la grille, pour le jour choisi.
+function blocAjout() {
+  if (agMode === 'choix') return `<div class="ajout">
+    <b>Ajouter un chantier le ${dt(agJour)} :</b>
+    <div class="add">
+      <button class="primary" data-agchoix="devis">📝 Nouveau devis</button>
+      <button data-agchoix="lier">📎 Devis ou facture existant</button>
+      <button data-agchoix="rdv">📌 Simple rendez-vous</button>
+      <button data-agchoix="">Annuler</button>
+    </div></div>`;
+  if (agMode === 'lier') {
+    const docs = db.factures.filter(f => f.type !== 'devis' || (!f.factureRef && f.statut !== 'refuse'))
+      .sort((a, b) => b.date.localeCompare(a.date) || b.numero.localeCompare(a.numero, 'fr', {numeric: true})).slice(0, 40);
+    return `<div class="ajout">
+      <b>Quel document mettre le ${dt(agJour)} ?</b>
+      ${docs.map(f => `<button class="lier" data-aglier="${f.id}"><b>${esc(f.numero)}</b> ${esc(f.client.nom || '(sans client)')}${badge(f)}
+        <small>${f.chantier?.debut ? `Chantier déjà prévu ${periode(f.chantier, false)}` : 'Pas encore de chantier'}</small></button>`).join('') || '<p class="note">Aucun devis ni facture.</p>'}
+      <div class="add"><button data-agchoix="choix">← Retour</button></div></div>`;
+  }
+  if (agMode === 'rdv') {
+    const r = agRdv, eq = r.equipe || [];
+    return `<div class="ajout">
+      <b>${db.rdv.includes(r) ? 'Modifier le rendez-vous' : 'Nouveau rendez-vous'}</b>
+      <div class="grid">
+        <label class="full">Client<input id="rdvClient" list="clients" autocomplete="off" value="${esc(r.client)}"></label>
+        <label>Début<input type="date" id="rdvDebut" value="${esc(r.debut)}"></label>
+        <label>Fin<input type="date" id="rdvFin" value="${esc(r.fin || r.debut)}"></label>
+        <label>Heure<input type="time" id="rdvHeure" value="${esc(r.heure)}"></label>
+        <label class="full">Adresse<textarea id="rdvAdresse" rows="2">${esc(r.adresse)}</textarea></label>
+        <label class="full">Note<textarea id="rdvNote" rows="2" placeholder="Ex. : visite pour devis, panne de prises…">${esc(r.note)}</textarea></label>
+      </div>
+      <p class="note">Qui vient ?</p>
+      <div class="opts" style="margin-top:0">${[['moi', 'Moi'], ...db.equipe.filter(p => p.nom.trim()).map(p => [p.id, `${p.nom.trim()} (${STATUT[p.statut]})`])]
+        .map(([id, nom]) => `<label class="chk"><input type="checkbox" data-rqui="${id}" ${eq.includes(id) ? 'checked' : ''}> ${esc(nom)}</label>`).join('')}</div>
+      <div class="add">
+        <button class="primary" data-rdvsave="1">✓ Enregistrer</button>
+        ${db.rdv.includes(r) ? '<button class="danger" data-rdvsuppr="1">Supprimer</button>' : ''}
+        <button data-agchoix="">Annuler</button>
+      </div></div>`;
+  }
+  return `<div class="add"><button class="primary" data-agadd="1">＋ Ajouter un chantier le ${dt(agJour)}</button></div>`;
+}
+
+// Lit le formulaire du rendez-vous (enregistré seulement sur « Enregistrer »).
+function lireRdv() {
+  const r = agRdv, v = id => $('#' + id).value;
+  Object.assign(r, {client: v('rdvClient').trim(), debut: v('rdvDebut') || agJour, heure: v('rdvHeure'), adresse: v('rdvAdresse'), note: v('rdvNote'),
+    equipe: [...document.querySelectorAll('[data-rqui]:checked')].map(i => i.dataset.rqui)});
+  r.fin = v('rdvFin') && v('rdvFin') >= r.debut ? v('rdvFin') : r.debut;
+  return r;
+}
+
 $('#agenda').addEventListener('click', e => {
-  const b = e.target.closest('[data-agm],[data-agj]');
+  const b = e.target.closest('[data-agm],[data-agj],[data-agadd],[data-agchoix],[data-aglier],[data-rdvsave],[data-rdvsuppr],[data-rdvedit],[data-rdvdevis]');
   if (!b) return;
   e.preventDefault();
-  if (b.dataset.agm) {
-    const [y, m] = agMois.split('-').map(Number), d = new Date(Date.UTC(y, m - 1 + +b.dataset.agm, 1));
-    agMois = d.toISOString().slice(0, 7); agJour = '';
-  } else agJour = b.dataset.agj === agJour ? '' : b.dataset.agj; // re-toucher le jour = tout le mois
+  const ds = b.dataset;
+  if (ds.agm) {
+    const [y, m] = agMois.split('-').map(Number), d = new Date(Date.UTC(y, m - 1 + +ds.agm, 1));
+    agMois = d.toISOString().slice(0, 7); agJour = ''; agMode = '';
+  } else if (ds.agj !== undefined) { agJour = ds.agj === agJour ? '' : ds.agj; agMode = ''; } // re-toucher le jour = tout le mois
+  else if (ds.agadd) agMode = 'choix';
+  else if (ds.agchoix !== undefined) {
+    if (ds.agchoix === 'devis') { // nouveau devis à cette date (un document vide en cours est réutilisé)
+      const c = cur();
+      if (estVide(c) && c.type === 'devis') ouvrir(c.id); else creer(null, 'devis');
+      cur().chantier = {debut: agJour, fin: agJour, equipe: []};
+      sauver(); remplir(); rendu();
+      $('#dlgAgenda').close(); $('.tabs [data-tab=saisie]').click(); $('[name="c.nom"]').focus();
+      return;
+    }
+    if (ds.agchoix === 'rdv') agRdv = {id: Date.now().toString(36), client: '', debut: agJour, fin: agJour, heure: '', adresse: '', note: '', equipe: []};
+    agMode = ds.agchoix;
+  } else if (ds.aglier) { // ce document passe à ce jour ; un chantier existant garde sa durée
+    const f = db.factures.find(x => x.id === ds.aglier), c = f.chantier;
+    if (c?.debut && c.debut !== agJour && !confirm(`${f.numero} a déjà un chantier ${periode(c, false)}.\nLe déplacer au ${dt(agJour)} ?`)) return;
+    const duree = c?.debut ? Math.round((new Date(finChantier(c) + 'T12:00Z') - new Date(c.debut + 'T12:00Z')) / 864e5) : 0;
+    f.chantier = {...(c || {equipe: []}), debut: agJour, fin: plusJours(agJour, duree)};
+    agMode = ''; sauver(); if (f === cur()) { remplir(); rendu(); }
+  } else if (ds.rdvedit) { agRdv = db.rdv.find(r => r.id === ds.rdvedit); agJour ||= agRdv.debut; agMode = 'rdv'; }
+  else if (ds.rdvsave) {
+    const r = lireRdv();
+    if (!db.rdv.includes(r)) db.rdv.push(r);
+    agJour = r.debut; agMois = r.debut.slice(0, 7); agMode = ''; sauver();
+  } else if (ds.rdvsuppr) {
+    if (!confirm('Supprimer ce rendez-vous ?')) return;
+    db.rdv.splice(db.rdv.indexOf(agRdv), 1); agMode = ''; sauver();
+  } else if (ds.rdvdevis) { // le rendez-vous devient un devis : client, adresse et dates repris
+    const r = db.rdv.find(x => x.id === ds.rdvdevis);
+    creer(null, 'devis');
+    const f = cur(), connu = clientParNom(r.client);
+    f.client = {nom: r.client, adresse: connu?.adresse || '', email: connu?.email || '', tva: connu?.tva || ''};
+    if (!f.client.adresse.trim()) f.client.adresse = r.adresse || ''; // client nouveau : l'adresse du rendez-vous est la sienne
+    f.chantier = {debut: r.debut, fin: r.fin, heure: r.heure, equipe: [...(r.equipe || [])], // adresse du chantier seulement si différente
+      adresse: (r.adresse || '').trim() !== f.client.adresse.trim() ? r.adresse : ''};
+    db.rdv.splice(db.rdv.indexOf(r), 1);
+    sauver(); remplir(); renderLignes(); rendu();
+    $('#dlgAgenda').close(); $('.tabs [data-tab=saisie]').click();
+    return;
+  }
   renderAgenda();
+});
+// Client déjà connu : son adresse se remplit dans le rendez-vous.
+$('#agenda').addEventListener('input', e => {
+  if (e.target.id !== 'rdvClient') return;
+  const connu = clientParNom(e.target.value);
+  if (connu && !$('#rdvAdresse').value.trim()) $('#rdvAdresse').value = connu.adresse;
 });
 
 // ---------- Catalogue seul : partage et fusion ----------
@@ -1540,6 +1669,7 @@ function demarrer() {
   db.reglages = {...DEFAUT, ...db.reglages};
   db.catalogue ??= catalogueDefaut();
   db.equipe ??= [];
+  db.rdv ??= []; // rendez-vous d'agenda sans devis ni facture
   db.equipe.forEach(p => { // personnes créées avant ces tarifs : ceux de Scott pour un associé
     const asso = p.statut === 'associe', r = db.reglages;
     p.km ??= r.km; p.demi ??= asso ? r.demi : ''; p.journee ??= asso ? r.journee : '';
