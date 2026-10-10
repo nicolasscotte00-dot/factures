@@ -109,6 +109,11 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .dossier .hi{margin:8px}
 .dossier .hi button:first-child{background:#fff}
 .du{color:#b45309;font-weight:600}
+.creances{display:grid;grid-template-columns:1fr auto;align-items:center;gap:2px 10px;margin-bottom:12px;padding:12px 14px;border-radius:12px;background:#fff7ed;border:1px solid #fed7aa}
+.creances b{font-size:1.35em;color:#b45309;grid-row:span 2}
+.creances small{color:var(--muted)}
+.creances.ok{background:#f0fdf4;border-color:#bbf7d0}
+.creances.ok b{color:#15803d}
 .hi small{display:block;color:var(--muted)}
 input[type=checkbox]{width:22px;height:22px;margin:0;flex:none}
 input[type=color]{height:44px;padding:3px;cursor:pointer}
@@ -922,8 +927,13 @@ function renderHist() {
         <button data-dup="${f.id}" title="Dupliquer" aria-label="Dupliquer">⧉</button>
         <button data-suppr="${f.id}" title="Supprimer" aria-label="Supprimer">🗑</button>
       </div>`;
+  // Créances : toutes les factures pas encore payées (acompte déjà versé déduit).
+  const dues = devis ? [] : db.factures.filter(f => f.type !== 'devis' && f.paiement !== 'paye' && montants(f).aPayer > 0);
+  const creances = dues.reduce((a, f) => a + montants(f).aPayer, 0);
   $('#hist').innerHTML = `
     <div class="htabs"><button data-ht="facture" class="${devis ? '' : 'on'}">🧾 Factures</button><button data-ht="devis" class="${devis ? 'on' : ''}">📝 Devis</button></div>
+    ${devis ? '' : `<div class="creances ${creances ? '' : 'ok'}"><span>💰 Créances en cours</span>
+      <b>${fmt(creances)}</b><small>${dues.length ? `${dues.length} facture${dues.length > 1 ? 's' : ''} en cours de paiement` : 'Tout est payé 👍'}</small></div>`}
     ${dossiers.map(d => {
       const total = d.fs.reduce((a, f) => a + calc(f).ttc, 0);
       const du = devis ? 0 : d.fs.filter(f => f.paiement !== 'paye').reduce((a, f) => a + montants(f).aPayer, 0);
